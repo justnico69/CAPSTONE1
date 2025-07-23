@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'landing_page.dart';
 
 void main() {
   runApp(const SPOTATOApp());
@@ -22,7 +23,7 @@ class SPOTATOApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF1c1c1e),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF2c2c2e)),
       ),
-      home: const HomePage(),
+      home: const LandingPage(),
     );
   }
 }
@@ -80,7 +81,7 @@ class _HomePageState extends State<HomePage> {
       // --- THIS IS THE UPDATED PART ---
       // Pointing to the Tello folder from your screenshot
       final String rootPath = externalDir.path.split('/Android')[0];
-      final String telloPath = '$rootPath/Pictures/TelloPhoto';
+      final String telloPath = '$rootPath/DCIM/Camera';
       final Directory imageDir = Directory(telloPath);
       // --- END OF UPDATE ---
 
