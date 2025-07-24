@@ -8,7 +8,7 @@ class LandingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 241, 240, 219),
+      backgroundColor: const Color.fromARGB(255, 245, 245, 242),
       body: Stack(
         // Use a Stack to layer widgets
         children: [
@@ -38,7 +38,7 @@ class LandingPage extends StatelessWidget {
                             'SPOT',
                             style: GoogleFonts.poppins(
                               fontSize: 30,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w800,
                               color: const Color.fromARGB(255, 128, 68, 12),
                             ),
                           ),
@@ -46,7 +46,7 @@ class LandingPage extends StatelessWidget {
                             'ato',
                             style: GoogleFonts.poppins(
                               fontSize: 30,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w800,
                               color: const Color.fromARGB(255, 236, 185, 74),
                             ),
                           ),
