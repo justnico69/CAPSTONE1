@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'main.dart'; // This imports your HomePage
+import 'home_page.dart'; 
 
 class GetStartedPage extends StatefulWidget {
   const GetStartedPage({super.key});
