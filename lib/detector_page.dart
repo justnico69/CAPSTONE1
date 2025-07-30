@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:tflite_flutter/tflite_flutter.dart' as tfl; // Import TFLite
 
 class DetectorPage extends StatefulWidget {
   const DetectorPage({super.key});
@@ -19,58 +21,140 @@ class _DetectorPageState extends State<DetectorPage> {
   String _prediction = "---";
   double _confidence = 0.0;
   Timer? _timer;
+  bool _isPaused = false;
+
+  tfl.Interpreter? _interpreter; // Variable to hold the TFLite model
 
   @override
   void initState() {
     super.initState();
-    _startMonitoring();
+    // Load the model and then start monitoring for images
+    _loadModel().then((_) {
+      _startMonitoring();
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _interpreter?.close(); // Close the interpreter when the page is disposed
     super.dispose();
   }
 
-  Future<void> _startMonitoring() async {
+  // --- MODEL AND SCANNING LOGIC ---
+
+  Future<void> _loadModel() async {
     setState(() {
-      _status = "Waiting for new images...";
+      _status = "Loading model...";
+    });
+    try {
+      // Load the model from the assets folder
+      _interpreter = await tfl.Interpreter.fromAsset(
+        'assets/models/model.tflite',
+      );
+      setState(() {
+        _status = "Model loaded successfully. Waiting for images...";
+      });
+    } catch (e) {
+      setState(() {
+        _status = "Failed to load model. Error: $e";
+      });
+      print("Error loading model: $e");
+    }
+  }
+
+  Future<void> _startMonitoring() async {
+    // Only start if the model was loaded successfully
+    if (_interpreter == null) return;
+
+    setState(() {
+      _status = "Scanning for new images...";
+    });
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (!_isPaused) {
+        _scanForNewImage();
+      }
+    });
+  }
+
+  void _togglePause() {
+    setState(() {
+      _isPaused = !_isPaused;
+      if (_isPaused) {
+        _timer?.cancel();
+        _status = "Scanning Paused";
+      } else {
+        _startMonitoring();
+      }
+    });
+  }
+
+  Future<void> _pickImage() async {
+    if (_timer?.isActive ?? false) {
+      _timer?.cancel();
+      setState(() {
+        _isPaused = true;
+      });
+    }
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      _runAnalysis(File(pickedFile.path));
+    }
+  }
+
+  void _runAnalysis(File image) {
+    if (_interpreter == null) {
+      setState(() {
+        _status = "Model is not loaded.";
+      });
+      return;
+    }
+
+    setState(() {
+      _latestImage = image;
+      _status = "Analyzing image...";
+      _prediction = "Analyzing...";
+      _confidence = 0.0;
     });
 
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      _scanForNewImage();
+    // --- Placeholder for your AI prediction logic ---
+    // 1. Pre-process the image (resize, normalize) to match your model's input.
+    // 2. Create input and output tensors.
+    // 3. Run inference: _interpreter.run(input, output);
+    // 4. Decode the output to get the prediction and confidence.
+    // ----------------------------------------------------
+
+    // We'll use a placeholder delay to simulate analysis
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() {
+        _status = "Analysis Complete";
+        _prediction = "Late Blight"; // Placeholder result
+        _confidence = 0.97; // Placeholder confidence
+      });
     });
   }
 
   Future<void> _scanForNewImage() async {
     var status = await Permission.photos.request();
-    if (!status.isGranted) {
-      setState(() {
-        _status = "Permission denied. Please enable in settings.";
-      });
-      return;
-    }
+    if (!status.isGranted) return;
 
     try {
       final Directory? externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) {
-        setState(() {
-          _status = "Could not access storage.";
-        });
-        return;
-      }
+      if (externalDir == null) return;
 
       final String rootPath = externalDir.path.split('/Android')[0];
       final String imagePath = '$rootPath/DCIM/Camera';
       final Directory imageDir = Directory(imagePath);
 
       if (await imageDir.exists()) {
-        final List<FileSystemEntity> files = imageDir.listSync();
-        if (files.isEmpty) return;
-
-        files.sort(
-          (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
-        );
+        final List<FileSystemEntity> files = imageDir.listSync()
+          ..sort(
+            (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+          );
 
         final imageFiles = files
             .where(
@@ -83,26 +167,15 @@ class _DetectorPageState extends State<DetectorPage> {
         File newImage = File(imageFiles.first.path);
 
         if (_latestImage?.path != newImage.path) {
-          setState(() {
-            _latestImage = newImage;
-            _status = "New image found! Analyzing...";
-            _prediction = "Analyzing...";
-            _confidence = 0.0;
-          });
-          // --- AI ANALYSIS WOULD GO HERE ---
-          Future.delayed(const Duration(seconds: 2), () {
-            setState(() {
-              _status = "Analysis Complete";
-              _prediction = "Late Blight"; // Placeholder result
-              _confidence = 0.97; // Placeholder confidence
-            });
-          });
+          _runAnalysis(newImage);
         }
       }
     } catch (e) {
-      // Handle exceptions
+      print("Error scanning for image: $e");
     }
   }
+
+  // --- UI BUILD METHOD ---
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +191,15 @@ class _DetectorPageState extends State<DetectorPage> {
             color: Colors.black87,
           ),
         ),
+        actions: [
+          IconButton(
+            onPressed: _togglePause,
+            icon: Icon(
+              _isPaused ? Icons.play_arrow : Icons.pause_circle_filled,
+              color: Colors.red,
+            ),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -127,7 +209,7 @@ class _DetectorPageState extends State<DetectorPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withAlpha(12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -149,12 +231,16 @@ class _DetectorPageState extends State<DetectorPage> {
                   child: _latestImage != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(11),
-                          child: Image.file(_latestImage!, fit: BoxFit.cover),
+                          child: Image.file(
+                            _latestImage!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                          ),
                         )
-                      : const Icon(
+                      : Icon(
                           Icons.image_search,
                           size: 80,
-                          color: Colors.black12,
+                          color: Colors.grey.shade300,
                         ),
                 ),
               ),
@@ -163,37 +249,37 @@ class _DetectorPageState extends State<DetectorPage> {
             Expanded(
               flex: 2,
               child: Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    Text(
-                      "Analysis Result",
-                      style: GoogleFonts.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Divider(),
-                    Text(
-                      _prediction,
-                      style: GoogleFonts.poppins(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w600,
-                        color: _confidence > 0.9
-                            ? Colors.redAccent
-                            : Colors.green,
-                      ),
-                    ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(
+                          "Analysis Result",
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Divider(),
+                        Text(
+                          _prediction,
+                          style: GoogleFonts.poppins(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w600,
+                            color: _confidence > 0.9
+                                ? Colors.redAccent
+                                : Colors.green,
+                          ),
+                        ),
+                        const Spacer(),
                         Text(
                           "CONFIDENCE",
                           style: GoogleFonts.lato(
@@ -209,7 +295,24 @@ class _DetectorPageState extends State<DetectorPage> {
                               : Colors.green,
                           minHeight: 8,
                         ),
+                        const SizedBox(height: 20),
                       ],
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      right: 0,
+                      child: ElevatedButton.icon(
+                        onPressed: _pickImage,
+                        icon: const Icon(Icons.photo_library),
+                        label: const Text("Select Manually"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
