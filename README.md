@@ -1,6 +1,6 @@
 # spotato
 
-A new Flutter project.
+An AI-based mobile application that detects and analyzes blight on potato leaves with a Tello Drone.
 
 ## Getting Started
 
