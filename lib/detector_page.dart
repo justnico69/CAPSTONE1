@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:tflite_flutter/tflite_flutter.dart' as tfl; // Import TFLite
+// Changed back to the original package as requested
+import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 
 class DetectorPage extends StatefulWidget {
   const DetectorPage({super.key});
@@ -23,13 +26,17 @@ class _DetectorPageState extends State<DetectorPage> {
   Timer? _timer;
   bool _isPaused = false;
 
-  tfl.Interpreter? _interpreter; // Variable to hold the TFLite model
+  tfl.Interpreter? _interpreter;
+  List<String> _labels = [];
+
+  // Define model parameters
+  final int _inputSize = 224;
+  final double _confidenceThreshold = 0.8;
 
   @override
   void initState() {
     super.initState();
-    // Load the model and then start monitoring for images
-    _loadModel().then((_) {
+    _loadModelAndLabels().then((_) {
       _startMonitoring();
     });
   }
@@ -37,23 +44,27 @@ class _DetectorPageState extends State<DetectorPage> {
   @override
   void dispose() {
     _timer?.cancel();
-    _interpreter?.close(); // Close the interpreter when the page is disposed
+    _interpreter?.close();
     super.dispose();
   }
 
-  // --- MODEL AND SCANNING LOGIC ---
-
-  Future<void> _loadModel() async {
+  Future<void> _loadModelAndLabels() async {
     setState(() {
       _status = "Loading model...";
     });
     try {
-      // Load the model from the assets folder
       _interpreter = await tfl.Interpreter.fromAsset(
         'assets/models/model.tflite',
       );
+      final labelsData = await rootBundle.loadString(
+        'assets/models/labels.txt',
+      );
+      _labels = labelsData
+          .split('\n')
+          .where((label) => label.isNotEmpty)
+          .toList();
       setState(() {
-        _status = "Model loaded successfully. Waiting for images...";
+        _status = "Model loaded successfully.";
       });
     } catch (e) {
       setState(() {
@@ -63,10 +74,67 @@ class _DetectorPageState extends State<DetectorPage> {
     }
   }
 
-  Future<void> _startMonitoring() async {
-    // Only start if the model was loaded successfully
-    if (_interpreter == null) return;
+  Future<void> _runAnalysis(File image) async {
+    if (_interpreter == null || _labels.isEmpty) {
+      setState(() {
+        _status = "Model or labels not loaded.";
+      });
+      return;
+    }
 
+    setState(() {
+      _latestImage = image;
+      _status = "Analyzing image...";
+      _prediction = "Analyzing...";
+      _confidence = 0.0;
+    });
+
+    final imageBytes = await image.readAsBytes();
+    final imageInput = img.decodeImage(imageBytes);
+    if (imageInput == null) return;
+
+    final resizedImage = img.copyResize(
+      imageInput,
+      width: _inputSize,
+      height: _inputSize,
+    );
+    final imageBytesResized = resizedImage.getBytes(
+      order: img.ChannelOrder.rgb,
+    );
+    final imageBuffer = Uint8List.fromList(imageBytesResized);
+    final inputTensor = imageBuffer.reshape([1, _inputSize, _inputSize, 3]);
+    final outputTensor = List.filled(
+      1 * _labels.length,
+      0.0,
+    ).reshape([1, _labels.length]);
+
+    _interpreter!.run(inputTensor, outputTensor);
+
+    final probabilities = outputTensor[0] as List<double>;
+
+    double maxScore = 0;
+    int bestIndex = -1;
+    for (int i = 0; i < probabilities.length; i++) {
+      if (probabilities[i] > maxScore) {
+        maxScore = probabilities[i];
+        bestIndex = i;
+      }
+    }
+
+    setState(() {
+      _status = "Analysis Complete";
+      if (bestIndex != -1 && maxScore > _confidenceThreshold) {
+        _prediction = _labels[bestIndex];
+        _confidence = maxScore;
+      } else {
+        _prediction = "Unknown";
+        _confidence = maxScore;
+      }
+    });
+  }
+
+  Future<void> _startMonitoring() async {
+    if (_interpreter == null) return;
     setState(() {
       _status = "Scanning for new images...";
     });
@@ -96,56 +164,19 @@ class _DetectorPageState extends State<DetectorPage> {
         _isPaused = true;
       });
     }
-
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
     if (pickedFile != null) {
       _runAnalysis(File(pickedFile.path));
     }
   }
 
-  void _runAnalysis(File image) {
-    if (_interpreter == null) {
-      setState(() {
-        _status = "Model is not loaded.";
-      });
-      return;
-    }
-
-    setState(() {
-      _latestImage = image;
-      _status = "Analyzing image...";
-      _prediction = "Analyzing...";
-      _confidence = 0.0;
-    });
-
-    // --- Placeholder for your AI prediction logic ---
-    // 1. Pre-process the image (resize, normalize) to match your model's input.
-    // 2. Create input and output tensors.
-    // 3. Run inference: _interpreter.run(input, output);
-    // 4. Decode the output to get the prediction and confidence.
-    // ----------------------------------------------------
-
-    // We'll use a placeholder delay to simulate analysis
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      setState(() {
-        _status = "Analysis Complete";
-        _prediction = "Late Blight"; // Placeholder result
-        _confidence = 0.97; // Placeholder confidence
-      });
-    });
-  }
-
   Future<void> _scanForNewImage() async {
     var status = await Permission.photos.request();
     if (!status.isGranted) return;
-
     try {
       final Directory? externalDir = await getExternalStorageDirectory();
       if (externalDir == null) return;
-
       final String rootPath = externalDir.path.split('/Android')[0];
       final String imagePath = '$rootPath/DCIM/Camera';
       final Directory imageDir = Directory(imagePath);
@@ -155,7 +186,6 @@ class _DetectorPageState extends State<DetectorPage> {
           ..sort(
             (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
           );
-
         final imageFiles = files
             .where(
               (file) =>
@@ -163,9 +193,7 @@ class _DetectorPageState extends State<DetectorPage> {
             )
             .toList();
         if (imageFiles.isEmpty) return;
-
         File newImage = File(imageFiles.first.path);
-
         if (_latestImage?.path != newImage.path) {
           _runAnalysis(newImage);
         }
@@ -174,8 +202,6 @@ class _DetectorPageState extends State<DetectorPage> {
       print("Error scanning for image: $e");
     }
   }
-
-  // --- UI BUILD METHOD ---
 
   @override
   Widget build(BuildContext context) {
