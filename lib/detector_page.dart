@@ -210,11 +210,13 @@ class _DetectorPageState extends State<DetectorPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
+        iconTheme: const IconThemeData(color:Color.fromARGB(255, 128, 68, 12)),
         title: Text(
-          'SPOTATO Detector',
+          'Detector',
           style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color.fromARGB(255, 128, 68, 12),
           ),
         ),
         actions: [
@@ -260,7 +262,7 @@ class _DetectorPageState extends State<DetectorPage> {
                           child: Image.file(
                             _latestImage!,
                             fit: BoxFit.cover,
-                            width: double.infinity,
+                            width: 300,
                           ),
                         )
                       : Icon(

@@ -234,7 +234,7 @@ class HomePage extends StatelessWidget {
         notchMargin: 8.0,
         color: Colors.white,
         elevation: 10.0,
-        height: screenHeight * 0.09,
+        height: screenHeight * 0.1,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: <Widget>[
