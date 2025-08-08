@@ -217,7 +217,7 @@ class HomePage extends StatelessWidget {
       notchMargin: 8.0,
       color: Colors.white,
       elevation: 10.0,
-      height: screenHeight * 0.09, // <-- RESPONSIVE CHANGE (e.g., 8.5% of screen height)
+      height: screenHeight * 0.1, 
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: <Widget>[
@@ -225,15 +225,15 @@ class HomePage extends StatelessWidget {
             icon: Icons.home_filled,
             label: "Home",
             isSelected: true,
-            screenWidth: screenWidth, // Pass screenWidth to the helper
+            screenWidth: screenWidth, 
           ),
-          // 2. Make the spacing proportional to the screen width
-          SizedBox(width: screenWidth * 0.05), // <-- RESPONSIVE CHANGE
+   
+          SizedBox(width: screenWidth * 0.05), 
           _buildBottomNavItem(
             icon: Icons.history,
             label: "History",
             isSelected: false,
-            screenWidth: screenWidth, // Pass screenWidth to the helper
+            screenWidth: screenWidth, 
           ),
         ],
       ),
