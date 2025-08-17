@@ -329,13 +329,14 @@ class _DetectorPageState extends State<DetectorPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
-        iconTheme: const IconThemeData(color: Color.fromARGB(255, 128, 68, 12)),
+        iconTheme: const IconThemeData(color:Color.fromARGB(255, 128, 68, 12)),
+
         title: Text(
           'Detector',
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: const Color.fromARGB(255, 128, 68, 12),
+            color: Color.fromARGB(255, 128, 68, 12),
           ),
         ),
         actions: [
@@ -360,10 +361,22 @@ class _DetectorPageState extends State<DetectorPage> {
                   color: Colors.black.withAlpha(12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  _status,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.lato(fontSize: 16, color: Colors.black54),
+                
+                child: Center(
+                  child: _latestImage != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(11),
+                          child: Image.file(
+                            _latestImage!,
+                            fit: BoxFit.cover,
+                            width: 300,
+                          ),
+                        )
+                      : Icon(
+                          Icons.image_search,
+                          size: 80,
+                          color: Colors.grey.shade300,
+                        ),
                 ),
               ),
               const SizedBox(height: 16),
