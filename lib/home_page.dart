@@ -250,6 +250,7 @@ class HomePage extends StatelessWidget {
               label: "History",
               isSelected: false,
               screenWidth: screenWidth,
+              
             ),
           ],
         ),
