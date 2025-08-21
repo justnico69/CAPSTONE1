@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +10,10 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
+
+import 'detection_result.dart';
+import 'history_page.dart'; // Import the history page
+import 'history_storage.dart';
 
 class DetectorPage extends StatefulWidget {
   const DetectorPage({super.key});
@@ -57,15 +60,20 @@ class _DetectorPageState extends State<DetectorPage> {
       _status = "Loading model...";
     });
     try {
-      _interpreter =
-          await tfl.Interpreter.fromAsset('assets/models/model.tflite');
-      final labelsData =
-          await rootBundle.loadString('assets/models/labels.txt');
-      _labels =
-          labelsData.split('\n').where((label) => label.trim().isNotEmpty).toList();
+      _interpreter = await tfl.Interpreter.fromAsset(
+        'assets/models/model.tflite',
+      );
+      final labelsData = await rootBundle.loadString(
+        'assets/models/labels.txt',
+      );
+      _labels = labelsData
+          .split('\n')
+          .where((label) => label.trim().isNotEmpty)
+          .toList();
       setState(() {
         _status = "Model loaded successfully.";
       });
+      print("Model loaded successfully.");
     } catch (e) {
       setState(() {
         _status = "Failed to load model. Error: $e";
@@ -79,6 +87,7 @@ class _DetectorPageState extends State<DetectorPage> {
       setState(() {
         _status = "Model or labels not loaded.";
       });
+      print("Error: Interpreter or labels not loaded.");
       return;
     }
 
@@ -100,13 +109,18 @@ class _DetectorPageState extends State<DetectorPage> {
         setState(() {
           _status = "Failed to decode image.";
         });
+        print("Failed to decode image at path: ${image.path}");
         return;
       }
 
-      final resizedImage =
-          img.copyResize(imageInput, width: _inputSize, height: _inputSize);
-      final imageBytesResized =
-          resizedImage.getBytes(order: img.ChannelOrder.rgb);
+      final resizedImage = img.copyResize(
+        imageInput,
+        width: _inputSize,
+        height: _inputSize,
+      );
+      final imageBytesResized = resizedImage.getBytes(
+        order: img.ChannelOrder.rgb,
+      );
       final imageBuffer = Uint8List.fromList(imageBytesResized);
 
       final input = imageBuffer.reshape([1, _inputSize, _inputSize, 3]);
@@ -125,6 +139,18 @@ class _DetectorPageState extends State<DetectorPage> {
           bestIndex = i;
         }
       }
+
+      // --- DEBUGGING STATEMENTS ---
+      print("\n--- Analysis Results ---");
+      print("Analysis Started: ${DateFormat('h:mm:ss a').format(startTime)}");
+      print("Best Index: $bestIndex");
+      print("Max Confidence: ${maxScore.toStringAsFixed(4)}");
+      if (bestIndex != -1) {
+        print("Predicted Label: ${_labels[bestIndex]}");
+      } else {
+        print("Predicted Label: Unknown");
+      }
+      print("--------------------------\n");
 
       setState(() {
         _status = "Analysis Complete";
@@ -151,6 +177,7 @@ class _DetectorPageState extends State<DetectorPage> {
     setState(() {
       _status = "Scanning for new images...";
     });
+    print("Starting periodic scan for new images...");
     _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (!_isPaused) {
         _scanForNewImage();
@@ -164,8 +191,10 @@ class _DetectorPageState extends State<DetectorPage> {
       if (_isPaused) {
         _timer?.cancel();
         _status = "Scanning Paused";
+        print("Scanning paused.");
       } else {
         _startMonitoring();
+        print("Scanning resumed.");
       }
     });
   }
@@ -180,34 +209,98 @@ class _DetectorPageState extends State<DetectorPage> {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
-      _runAnalysis(File(pickedFile.path));
+      print("User picked an image: ${pickedFile.path}");
+      await _runAnalysis(File(pickedFile.path));
+      if (_prediction != '---' && _confidence > _confidenceThreshold) {
+        print("Prediction meets threshold. Saving to history...");
+        HistoryStorage().addResult(
+          DetectionResult(
+            image: _latestImage!,
+            prediction: _prediction,
+            confidence: _confidence,
+            dateCaptured: _analysisTimestamp ?? DateTime.now(),
+          ),
+        );
+        print("Data saved.");
+      } else {
+        print("Prediction does not meet threshold. Not saving.");
+      }
+    } else {
+      print("No image was picked from the gallery.");
     }
   }
 
   Future<void> _scanForNewImage() async {
     var status = await Permission.photos.request();
-    if (!status.isGranted) return;
+    if (!status.isGranted) {
+      print("Permission to access photos not granted.");
+      return;
+    }
+
     try {
       final Directory? externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) return;
+      if (externalDir == null) {
+        print("Could not get external storage directory.");
+        return;
+      }
+
       final String rootPath = externalDir.path.split('/Android')[0];
       final String imagePath = '$rootPath/DCIM/Camera';
       final Directory imageDir = Directory(imagePath);
 
+      print("Scanning directory: $imagePath");
+
       if (await imageDir.exists()) {
         final List<FileSystemEntity> files = imageDir.listSync()
           ..sort(
-              (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+            (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+          );
+
         final imageFiles = files
-            .where((file) =>
-                file.path.toLowerCase().endsWith('.jpg') ||
-                file.path.toLowerCase().endsWith('.png'))
+            .where(
+              (file) =>
+                  file.path.toLowerCase().endsWith('.jpg') ||
+                  file.path.toLowerCase().endsWith('.png'),
+            )
             .toList();
-        if (imageFiles.isEmpty) return;
-        File newImage = File(imageFiles.first.path);
-        if (_latestImage?.path != newImage.path) {
-          _runAnalysis(newImage);
+
+        if (imageFiles.isEmpty) {
+          print("No image files found in DCIM/Camera.");
+          return;
         }
+
+        File newImage = File(imageFiles.first.path);
+
+        // This is a crucial check. It prevents re-analyzing the same image.
+        if (_latestImage?.path != newImage.path) {
+          print("New image found: ${newImage.path}. Analyzing...");
+          _latestImage = newImage;
+          await _runAnalysis(newImage);
+
+          // Check if a valid prediction was made and confidence is high enough.
+          if (_prediction != '---' &&
+              _prediction != "Unknown" &&
+              _confidence > _confidenceThreshold) {
+            print("Prediction meets threshold. Saving to history...");
+            HistoryStorage().addResult(
+              DetectionResult(
+                image: _latestImage!,
+                prediction: _prediction,
+                confidence: _confidence,
+                dateCaptured: _analysisTimestamp ?? DateTime.now(),
+              ),
+            );
+            print("Data saved.");
+          } else {
+            print(
+              "Prediction does not meet threshold or is invalid. Not saving.",
+            );
+          }
+        } else {
+          print("No new image found since last scan.");
+        }
+      } else {
+        print("DCIM/Camera directory does not exist.");
       }
     } catch (e) {
       print("Error scanning for image: $e");
@@ -240,6 +333,15 @@ class _DetectorPageState extends State<DetectorPage> {
               color: Colors.red,
             ),
           ),
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const HistoryPage()),
+              );
+            },
+            icon: const Icon(Icons.history),
+            tooltip: 'View History',
+          ),
         ],
       ),
       // --- BODY IS NOW A STACK TO POSITION THE BUTTON ---
@@ -261,7 +363,10 @@ class _DetectorPageState extends State<DetectorPage> {
                     child: Text(
                       _status,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.lato(fontSize: 16, color: Colors.black54),
+                      style: GoogleFonts.lato(
+                        fontSize: 16,
+                        color: Colors.black54,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -314,7 +419,9 @@ class _DetectorPageState extends State<DetectorPage> {
                           icon: Icons.biotech,
                           label: "Prediction",
                           value: _prediction,
-                          valueColor: _confidence > 0.9 ? Colors.redAccent : Colors.green,
+                          valueColor: _confidence > 0.9
+                              ? Colors.redAccent
+                              : Colors.green,
                         ),
                         const SizedBox(height: 16),
                         _buildDetailRow(
@@ -325,7 +432,9 @@ class _DetectorPageState extends State<DetectorPage> {
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              vertical: 8.0, horizontal: 8.0),
+                            vertical: 8.0,
+                            horizontal: 8.0,
+                          ),
                           child: LinearProgressIndicator(
                             value: _confidence,
                             backgroundColor: Colors.grey.shade300,
@@ -342,17 +451,18 @@ class _DetectorPageState extends State<DetectorPage> {
                           value: _analysisDuration != null
                               ? "${_analysisDuration?.inMilliseconds} ms"
                               : "---",
-                              valueColor: const Color.fromARGB(255, 128, 68, 12),
+                          valueColor: const Color.fromARGB(255, 128, 68, 12),
                         ),
                         const SizedBox(height: 16),
                         _buildDetailRow(
                           icon: Icons.calendar_today,
                           label: "Date Captured",
                           value: _analysisTimestamp != null
-                              ? DateFormat('MMMM d, yyyy')
-                                  .format(_analysisTimestamp!)
+                              ? DateFormat(
+                                  'MMMM d, yyyy',
+                                ).format(_analysisTimestamp!)
                               : "---",
-                              valueColor: const Color.fromARGB(255, 128, 68, 12),
+                          valueColor: const Color.fromARGB(255, 128, 68, 12),
                         ),
                         const SizedBox(height: 16),
                         _buildDetailRow(
@@ -361,12 +471,14 @@ class _DetectorPageState extends State<DetectorPage> {
                           value: _analysisTimestamp != null
                               ? DateFormat('h:mm a').format(_analysisTimestamp!)
                               : "---",
-                              valueColor: const Color.fromARGB(255, 128, 68, 12),
+                          valueColor: const Color.fromARGB(255, 128, 68, 12),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 10), // Space so the FAB doesn't cover content
+                  const SizedBox(
+                    height: 10,
+                  ), // Space so the FAB doesn't cover content
                 ],
               ),
             ),
@@ -389,11 +501,12 @@ class _DetectorPageState extends State<DetectorPage> {
     );
   }
 
-  Widget _buildDetailRow(
-      {required IconData icon,
-      required String label,
-      required String value,
-      Color? valueColor}) {
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? valueColor,
+  }) {
     return Row(
       children: [
         Icon(icon, color: Colors.grey[600], size: 20),
@@ -414,7 +527,7 @@ class _DetectorPageState extends State<DetectorPage> {
               ),
             ),
           ],
-        )
+        ),
       ],
     );
   }
