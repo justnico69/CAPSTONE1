@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'detector_page.dart';
+import 'history_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -245,12 +246,19 @@ class HomePage extends StatelessWidget {
               screenWidth: screenWidth,
             ),
             SizedBox(width: screenWidth * 0.05),
-            _buildBottomNavItem(
-              icon: Icons.history,
-              label: "History",
-              isSelected: false,
-              screenWidth: screenWidth,
-              
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HistoryPage()),
+                );
+              },
+              child: _buildBottomNavItem(
+                icon: Icons.history,
+                label: "History",
+                isSelected: false,
+                screenWidth: screenWidth,
+              ),
             ),
           ],
         ),
