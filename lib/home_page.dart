@@ -1,11 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:installed_apps/app_info.dart';
+import 'package:installed_apps/installed_apps.dart';
 
 import 'detector_page.dart';
 import 'history_page.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  String telloPackage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    checkInstalledApps();
+  }
+
+  /// Check if Tello app is installed
+  Future<void> checkInstalledApps() async {
+    List<AppInfo> apps = await InstalledApps.getInstalledApps(true, true);
+
+    bool found = false;
+    for (var app in apps) {
+      if (app.packageName == "com.ryzerobotics.tello") {
+        debugPrint("✅ Found Tello: ${app.name} -> ${app.packageName}");
+        telloPackage = app.packageName;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      debugPrint("❌ Tello app not found on this device.");
+    }
+  }
+
+  /// Launch Tello if found
+  Future<void> launchTello() async {
+    if (telloPackage.isNotEmpty) {
+      await InstalledApps.startApp(telloPackage);
+    } else {
+      debugPrint("Tello package not found. Cannot launch.");
+      // You can optionally send user to Play Store here
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +60,7 @@ class HomePage extends StatelessWidget {
       backgroundColor: const Color.fromARGB(243, 248, 248, 248),
       body: Column(
         children: [
-          // -- HEADER --
+          // HEADER
           ClipRRect(
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(70),
@@ -95,7 +139,7 @@ class HomePage extends StatelessWidget {
             ),
           ),
 
-          // -- RESULTS CONTENT --
+          // RESULTS CONTENT
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(
@@ -167,7 +211,7 @@ class HomePage extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              "Detect Disease",
+                              "Detect Image Potato",
                               style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -177,39 +221,6 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                   ),
-
-                  // -- IMAGES CONTENT --
-                  const SizedBox(height: 30),
-                  Text(
-                    "Images",
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: const Color.fromARGB(255, 128, 68, 12),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    height: screenHeight * 0.25,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(20),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      "Folder is empty.\nImages are not imported yet.",
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(color: Colors.grey[600]),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -217,18 +228,11 @@ class HomePage extends StatelessWidget {
         ],
       ),
 
-      // --- NAVIGATION BAR ---
+      // NAVIGATION BAR + FAB
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const DetectorPage()),
-          );
-        },
-        backgroundColor: const Color.fromARGB(255, 82, 42, 4),
-        shape: const CircleBorder(),
-        child: const Icon(Icons.document_scanner_outlined, color: Colors.white),
+        onPressed: launchTello,
+        child: const Icon(Icons.flight_takeoff),
       ),
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
@@ -266,7 +270,6 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // --- BOTTOM NAV ITEM WIDGET ---
   Widget _buildBottomNavItem({
     required IconData icon,
     required String label,
