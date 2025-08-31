@@ -12,7 +12,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 
 import 'detection_result.dart';
-import 'history_page.dart'; // Import the history page
+import 'history_page.dart';
 import 'history_storage.dart';
 
 class DetectorPage extends StatefulWidget {
@@ -129,7 +129,7 @@ class _DetectorPageState extends State<DetectorPage> {
       _interpreter!.run(input, output);
 
       final endTime = DateTime.now();
-      final probabilities = output[0] as List<double>;
+      final probabilities = output[0];
 
       double maxScore = 0.0;
       int bestIndex = -1;
