@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
 import 'detector_page.dart';
 import 'history_page.dart';
@@ -214,6 +215,7 @@ class _HomePageState extends State<HomePage> {
                               "Detect Image Potato",
                               style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.bold,
+                                fontSize: 12,
                               ),
                             ),
                           ),
@@ -232,7 +234,15 @@ class _HomePageState extends State<HomePage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
         onPressed: launchTello,
-        child: const Icon(Icons.flight_takeoff),
+        backgroundColor: const Color(0xFF522A04), // ✅ custom bg color (dark brown/gold vibe)
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(50), // ✅ makes sure it's fully circular
+        ),
+        child: const Icon(
+          Icons.document_scanner_outlined, // or Icons.videocam
+          size: 28,
+          color: Colors.white, // icon color
+        ),
       ),
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
