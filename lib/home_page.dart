@@ -4,7 +4,6 @@ import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 
 import 'detector_page.dart';
-import 'history_page.dart';
 import 'album_detail.dart';
 import 'album_page.dart';
 
@@ -18,8 +17,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String telloPackage = '';
 
-  // ✅ Store albums here
+  // ✅ Store albums here (no dummy albums)
   final List<Map<String, String>> _albums = [];
+
+  // ✅ Selection mode variables
+  Set<int> _selectedAlbums = {};
+  bool _selectionMode = false;
 
   @override
   void initState() {
@@ -55,10 +58,102 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// ✅ Toggle album selection
+  void _toggleSelection(int index) {
+    setState(() {
+      if (_selectedAlbums.contains(index)) {
+        _selectedAlbums.remove(index);
+        if (_selectedAlbums.isEmpty) {
+          _selectionMode = false; // exit if nothing is selected
+        }
+      } else {
+        _selectedAlbums.add(index);
+        _selectionMode = true;
+      }
+    });
+  }
+
+  /// ✅ Delete selected albums (with empty check)
+  void _deleteSelectedAlbums() {
+    if (_selectedAlbums.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "No albums selected to delete",
+            style: GoogleFonts.poppins(fontSize: 12),
+          ),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(bottom: 10, left: 20, right: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: Colors.grey[700],
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return; // stop if nothing selected
+    }
+
+    setState(() {
+      _albums.removeWhere(
+        (album) => _selectedAlbums.contains(_albums.indexOf(album)),
+      );
+      _selectedAlbums.clear();
+      _selectionMode = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          "Deleted selected albums",
+          style: GoogleFonts.poppins(fontSize: 12),
+        ),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 10, left: 20, right: 20),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        backgroundColor: const Color(0xFF80440C),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// ✅ Add new album
+  void _addNewAlbum() {
+    Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const NewAlbumPage(),
+      ),
+    ).then((result) {
+      if (result != null) {
+        final name = result['name'] as String;
+        final dateIso = result['date'] as String;
+        final dateOnly = dateIso.split('T')[0];
+
+        // Add album to list
+        setState(() {
+          _albums.add({
+            "name": name,
+            "date": dateOnly,
+          });
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Album "$name" created for $dateOnly',
+            ),
+          ),
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       backgroundColor: const Color.fromARGB(243, 248, 248, 248),
@@ -71,65 +166,75 @@ class _HomePageState extends State<HomePage> {
               bottomRight: Radius.circular(70),
             ),
             child: Container(
-              height: screenHeight * 0.195,
+              height: screenHeight * 0.18,
               color: Colors.white,
               child: SafeArea(
+                bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(30, 0, 30, 0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Image.asset(
-                            'assets/images/spotato_logo.png',
-                            height: screenHeight * 0.05,
-                          ),
-                          const SizedBox(width: 10),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              RichText(
-                                text: TextSpan(
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 25,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                  children: const [
-                                    TextSpan(
-                                      text: 'SPOT',
-                                      style: TextStyle(
-                                        color: Color.fromARGB(255, 128, 68, 12),
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: 'ato',
-                                      style: TextStyle(
-                                        color: Color.fromARGB(255, 236, 185, 74),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              Image.asset(
+                                'assets/images/spotato_logo.png',
+                                height: screenHeight * 0.05,
                               ),
-                              Text(
-                                "at your service!",
-                                style: GoogleFonts.poppins(
-                                  color: Color.fromARGB(255, 160, 98, 45),
-                                  fontSize: 15,
-                                ),
+                              const SizedBox(width: 10),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  RichText(
+                                    text: TextSpan(
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 25,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                      children: const [
+                                        TextSpan(
+                                          text: 'SPOT',
+                                          style: TextStyle(
+                                            color:
+                                                Color.fromARGB(255, 128, 68, 12),
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: 'ato',
+                                          style: TextStyle(
+                                            color:
+                                                Color.fromARGB(255, 236, 185, 74),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    "at your service!",
+                                    style: GoogleFonts.poppins(
+                                      color: Color.fromARGB(255, 160, 98, 45),
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.notifications,
+                              color: Color.fromARGB(255, 128, 68, 12),
+                              size: 28,
+                            ),
+                            onPressed: () {},
+                          ),
                         ],
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications,
-                          color: Color.fromARGB(255, 128, 68, 12),
-                          size: 28,
-                        ),
-                        onPressed: () {},
                       ),
                     ],
                   ),
@@ -139,250 +244,104 @@ class _HomePageState extends State<HomePage> {
           ),
 
           // CONTENT
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: screenWidth * 0.07,
-                vertical: screenWidth * 0.08,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 📌 Section: Create Album
-                  Text(
-                    "Create Album",
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: const Color.fromARGB(255, 128, 68, 12),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 3,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Center(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push<Map<String, dynamic>>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const NewAlbumPage(),
-                              ),
-                            ).then((result) {
-                              if (result != null) {
-                                final name = result['name'] as String;
-                                final dateIso = result['date'] as String;
-                                final dateOnly = dateIso.split('T')[0];
-
-                                // ✅ Add album to list
-                                setState(() {
-                                  _albums.add({
-                                    "name": name,
-                                    "date": dateOnly,
-                                  });
-                                });
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Album "$name" created for $dateOnly',
-                                    ),
-                                  ),
-                                );
-                              }
-                            });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF80440C),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 40,
-                              vertical: 16,
-                            ),
-                          ),
-                          child: Text(
-                            "Add New Album",
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "Recent Albums",
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: const Color.fromARGB(255, 128, 68, 12),
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: 30),
-
-                  // 📌 Section: Albums
-                  Text(
-                    "Albums",
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: const Color.fromARGB(255, 128, 68, 12),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.add,
+                          color: Color.fromARGB(255, 128, 68, 12)),
+                      tooltip: "Add Album",
+                      onPressed: _addNewAlbum,
                     ),
-                  ),
-                  const SizedBox(height: 10),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: "Delete Selected",
+                      onPressed: _deleteSelectedAlbums,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
 
-                  _albums.isEmpty
-                      ? const Text(
-                          "No albums yet. Create one!",
-                          style: TextStyle(color: Colors.grey),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _albums.length,
-                          itemBuilder: (context, index) {
-                            final album = _albums[index];
-                            return Card(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                leading: const Icon(Icons.photo_album,
-                                    color: Color(0xFF80440C)),
-                                title: Text(album["name"] ?? ""),
-                                subtitle: Text("Date: ${album["date"]}"),
-                                onTap: () {
-                                  // ✅ Open Album Detail page
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => AlbumDetailPage(
-                                        name: album["name"]!,
-                                        date: album["date"]!,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        ),
+          // small space between text & cards
+          const SizedBox(height: 8),
 
-                  const SizedBox(height: 30),
+          // ✅ Album list (fixed padding issue)
+          _albums.isEmpty
+              ? const Text(
+                  "No albums yet. Create one!",
+                  style: TextStyle(color: Colors.grey),
+                )
+              : Expanded(
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero, // 👈 removes hidden top padding
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _albums.length > 5 ? 5 : _albums.length,
+                    itemBuilder: (context, index) {
+                      final album = _albums[index];
+                      final isSelected = _selectedAlbums.contains(index);
 
-                  // 📌 Section: Scan Potato
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DetectorPage(),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEAA944),
-                        foregroundColor: Colors.white,
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 6),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 40,
-                          vertical: 16,
+                        color:
+                            isSelected ? Colors.brown.withOpacity(0.2) : null,
+                        child: ListTile(
+                          leading: Icon(
+                            isSelected
+                                ? Icons.check_circle
+                                : Icons.photo_album,
+                            color: const Color(0xFF80440C),
+                          ),
+                          title: Text(album["name"] ?? ""),
+                          subtitle: Text("Date: ${album["date"]}"),
+                          onTap: () {
+                            if (_selectionMode) {
+                              _toggleSelection(index);
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AlbumDetailPage(
+                                    name: album["name"]!,
+                                    date: album["date"]!,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          onLongPress: () => _toggleSelection(index),
                         ),
-                      ),
-                      child: Text(
-                        "Scan Potato",
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
-                ],
-              ),
-            ),
-          ),
+                ),
+
+          const SizedBox(height: 30),
         ],
       ),
-
-      // NAVIGATION BAR + FAB
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingActionButton(
-        onPressed: launchTello,
-        backgroundColor: const Color(0xFF522A04),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(50),
-        ),
-        child: const Icon(
-          Icons.document_scanner_outlined,
-          size: 28,
-          color: Colors.white,
-        ),
-      ),
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8.0,
-        color: Colors.white,
-        elevation: 10.0,
-        height: screenHeight * 0.1,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: <Widget>[
-            _buildBottomNavItem(
-              icon: Icons.home_filled,
-              label: "Home",
-              isSelected: true,
-              screenWidth: screenWidth,
-            ),
-            SizedBox(width: screenWidth * 0.05),
-            InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HistoryPage()),
-                );
-              },
-              child: _buildBottomNavItem(
-                icon: Icons.history,
-                label: "History",
-                isSelected: false,
-                screenWidth: screenWidth,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required double screenWidth,
-  }) {
-    final color =
-        isSelected ? const Color.fromARGB(255, 82, 42, 4) : Colors.grey;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: screenWidth * 0.06),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            color: color,
-            fontSize: screenWidth * 0.03,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
     );
   }
 }
