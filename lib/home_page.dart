@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 
-import 'detector_page.dart';
 import 'album_detail.dart';
 import 'album_page.dart';
 
@@ -110,9 +109,7 @@ class _HomePageState extends State<HomePage> {
         ),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.only(bottom: 10, left: 20, right: 20),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: const Color(0xFF80440C),
         duration: const Duration(seconds: 2),
       ),
@@ -123,9 +120,7 @@ class _HomePageState extends State<HomePage> {
   void _addNewAlbum() {
     Navigator.push<Map<String, dynamic>>(
       context,
-      MaterialPageRoute(
-        builder: (context) => const NewAlbumPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const NewAlbumPage()),
     ).then((result) {
       if (result != null) {
         final name = result['name'] as String;
@@ -134,18 +129,11 @@ class _HomePageState extends State<HomePage> {
 
         // Add album to list
         setState(() {
-          _albums.add({
-            "name": name,
-            "date": dateOnly,
-          });
+          _albums.add({"name": name, "date": dateOnly});
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Album "$name" created for $dateOnly',
-            ),
-          ),
+          SnackBar(content: Text('Album "$name" created for $dateOnly')),
         );
       }
     });
@@ -201,15 +189,23 @@ class _HomePageState extends State<HomePage> {
                                         TextSpan(
                                           text: 'SPOT',
                                           style: TextStyle(
-                                            color:
-                                                Color.fromARGB(255, 128, 68, 12),
+                                            color: Color.fromARGB(
+                                              255,
+                                              128,
+                                              68,
+                                              12,
+                                            ),
                                           ),
                                         ),
                                         TextSpan(
                                           text: 'ato',
                                           style: TextStyle(
-                                            color:
-                                                Color.fromARGB(255, 236, 185, 74),
+                                            color: Color.fromARGB(
+                                              255,
+                                              236,
+                                              185,
+                                              74,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -265,8 +261,10 @@ class _HomePageState extends State<HomePage> {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.add,
-                          color: Color.fromARGB(255, 128, 68, 12)),
+                      icon: const Icon(
+                        Icons.add,
+                        color: Color.fromARGB(255, 128, 68, 12),
+                      ),
                       tooltip: "Add Album",
                       onPressed: _addNewAlbum,
                     ),
@@ -302,17 +300,18 @@ class _HomePageState extends State<HomePage> {
 
                       return Card(
                         margin: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 6),
+                          horizontal: 20,
+                          vertical: 6,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        color:
-                            isSelected ? Colors.brown.withOpacity(0.2) : null,
+                        color: isSelected
+                            ? Colors.brown.withOpacity(0.2)
+                            : null,
                         child: ListTile(
                           leading: Icon(
-                            isSelected
-                                ? Icons.check_circle
-                                : Icons.photo_album,
+                            isSelected ? Icons.check_circle : Icons.photo_album,
                             color: const Color(0xFF80440C),
                           ),
                           title: Text(album["name"] ?? ""),
@@ -324,8 +323,8 @@ class _HomePageState extends State<HomePage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => AlbumDetailPage(
-                                    name: album["name"]!,
+                                  builder: (context) => AlbumDetail(
+                                    albumName: album["name"]!,
                                     date: album["date"]!,
                                   ),
                                 ),
