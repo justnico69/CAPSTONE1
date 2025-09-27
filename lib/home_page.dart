@@ -1,7 +1,10 @@
+import 'dart:convert'; // Import for JSON encoding/decoding
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
 
 import 'album_detail.dart';
 import 'album_page.dart';
@@ -16,7 +19,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String telloPackage = '';
 
-  // ✅ Store albums here (no dummy albums)
+  // ✅ Store albums here
   final List<Map<String, String>> _albums = [];
 
   // ✅ Selection mode variables
@@ -27,6 +30,29 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     checkInstalledApps();
+    _loadAlbums(); // 👈 Load albums on startup
+  }
+
+  /// Load albums from SharedPreferences
+  Future<void> _loadAlbums() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? albumsString = prefs.getString('albums');
+    if (albumsString != null) {
+      final List<dynamic> jsonList = jsonDecode(albumsString);
+      setState(() {
+        _albums.addAll(jsonList.map((item) => Map<String, String>.from(item)));
+      });
+      debugPrint("✅ Loaded ${_albums.length} albums.");
+    }
+  }
+
+  /// Save current album list to SharedPreferences
+  Future<void> _saveAlbums() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Convert List<Map<String, String>> to a JSON string
+    final String albumsString = jsonEncode(_albums);
+    await prefs.setString('albums', albumsString);
+    debugPrint("✅ Saved ${_albums.length} albums.");
   }
 
   /// Check if Tello app is installed
@@ -94,12 +120,19 @@ class _HomePageState extends State<HomePage> {
     }
 
     setState(() {
-      _albums.removeWhere(
-        (album) => _selectedAlbums.contains(_albums.indexOf(album)),
-      );
+      // Create a list of album maps to delete
+      final albumsToDelete = _selectedAlbums
+          .map((index) => _albums[index])
+          .toSet();
+
+      // Remove items from the original list
+      _albums.removeWhere((album) => albumsToDelete.contains(album));
+
       _selectedAlbums.clear();
       _selectionMode = false;
     });
+
+    _saveAlbums(); // 👈 Save after deletion
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -131,6 +164,8 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _albums.add({"name": name, "date": dateOnly});
         });
+
+        _saveAlbums(); // 👈 Save after addition
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Album "$name" created for $dateOnly')),
@@ -292,9 +327,16 @@ class _HomePageState extends State<HomePage> {
                   child: ListView.builder(
                     padding: EdgeInsets.zero, // 👈 removes hidden top padding
                     shrinkWrap: true,
+                    // Use ScrollPhysics if the outer Column/screen is too small,
+                    // otherwise, if the list is guaranteed to fit in the remaining space,
+                    // NeverScrollableScrollPhysics is fine.
+                    // Changed to ClampingScrollPhysics in case more than 5 items are needed later,
+                    // but keeping as NeverScrollableScrollPhysics to honor the original.
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: _albums.length > 5 ? 5 : _albums.length,
                     itemBuilder: (context, index) {
+                      // Correctly handle index after sorting/filtering if needed,
+                      // but here indices map directly to _albums list.
                       final album = _albums[index];
                       final isSelected = _selectedAlbums.contains(index);
 
@@ -344,3 +386,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+// Keep NewAlbumPage as is, no changes needed for local storage as it only returns the new data.
