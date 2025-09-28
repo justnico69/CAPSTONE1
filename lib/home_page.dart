@@ -1,13 +1,11 @@
-import 'dart:convert'; // Import for JSON encoding/decoding
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'album_detail.dart';
-import 'album_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,10 +17,10 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String telloPackage = '';
 
-  // ✅ Store albums here
+  // "name" and "date" keys.
   final List<Map<String, String>> _albums = [];
 
-  // ✅ Selection mode variables
+  // Selection mode variables
   Set<int> _selectedAlbums = {};
   bool _selectionMode = false;
 
@@ -30,10 +28,10 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     checkInstalledApps();
-    _loadAlbums(); // 👈 Load albums on startup
+    _loadAlbums();
   }
 
-  /// Load albums from SharedPreferences
+  /// Load albums
   Future<void> _loadAlbums() async {
     final prefs = await SharedPreferences.getInstance();
     final String? albumsString = prefs.getString('albums');
@@ -83,13 +81,13 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  /// ✅ Toggle album selection
+  /// Toggle album selection
   void _toggleSelection(int index) {
     setState(() {
       if (_selectedAlbums.contains(index)) {
         _selectedAlbums.remove(index);
         if (_selectedAlbums.isEmpty) {
-          _selectionMode = false; // exit if nothing is selected
+          _selectionMode = false;
         }
       } else {
         _selectedAlbums.add(index);
@@ -98,7 +96,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  /// ✅ Delete selected albums (with empty check)
+  /// Delete selected albums
   void _deleteSelectedAlbums() {
     if (_selectedAlbums.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -120,19 +118,19 @@ class _HomePageState extends State<HomePage> {
     }
 
     setState(() {
-      // Create a list of album maps to delete
-      final albumsToDelete = _selectedAlbums
-          .map((index) => _albums[index])
-          .toSet();
+      // Get the indices and sort them descending so removal doesn't shift the list
+      final sortedIndices = _selectedAlbums.toList()..sort((a, b) => b.compareTo(a));
 
-      // Remove items from the original list
-      _albums.removeWhere((album) => albumsToDelete.contains(album));
+      // Remove items from the original list by index
+      for (final index in sortedIndices) {
+        _albums.removeAt(index);
+      }
 
       _selectedAlbums.clear();
       _selectionMode = false;
     });
 
-    _saveAlbums(); // 👈 Save after deletion
+    _saveAlbums(); // Save after deletion
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -149,30 +147,123 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// ✅ Add new album
-  void _addNewAlbum() {
-    Navigator.push<Map<String, dynamic>>(
-      context,
-      MaterialPageRoute(builder: (context) => const NewAlbumPage()),
-    ).then((result) {
-      if (result != null) {
-        final name = result['name'] as String;
-        final dateIso = result['date'] as String;
-        final dateOnly = dateIso.split('T')[0];
+  /// Album creation via Dialog
+  Future<void> _showCreateAlbumDialog() async {
+    final albumNameController = TextEditingController();
 
-        // Add album to list
-        setState(() {
-          _albums.add({"name": name, "date": dateOnly});
-        });
+    // The result map now expects 'name' and 'date'
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        String? albumNameError;
 
-        _saveAlbums(); // 👈 Save after addition
+        return StatefulBuilder(
+          builder: (context, setStateInDialog) {
+            void saveAlbum() {
+              setStateInDialog(() {
+                albumNameError = null; // Reset error
+              });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Album "$name" created for $dateOnly')),
+              final name = albumNameController.text.trim();
+
+              // 1. Validation
+              if (name.isEmpty) {
+                setStateInDialog(() {
+                  albumNameError = "Please enter an album name (e.g., Month Year)";
+                });
+                return;
+              }
+
+              final now = DateTime.now();
+              // Format: DD/MM/YYYY 
+              final dateCreated =
+                  "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+
+              Navigator.pop(dialogContext, {
+                'name': name,
+                'date': dateCreated,
+              });
+            }
+
+            return AlertDialog(
+              title: Text(
+                'Create Album',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Enter the name of your new album:',
+                    style: GoogleFonts.poppins(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: albumNameController,
+                    autofocus: true,
+                    style: GoogleFonts.poppins(),
+                    onChanged: (value) {
+                      if (value.trim().isNotEmpty && albumNameError != null) {
+                        setStateInDialog(() {
+                          albumNameError = null;
+                        });
+                      }
+                    },
+                    onSubmitted: (_) => saveAlbum(),
+                    decoration: InputDecoration(
+                      labelText: '(e.g., Month & Year)',
+                      labelStyle: GoogleFonts.poppins(),
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                      errorText: albumNameError,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext), 
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.poppins(color: Colors.grey[700]),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: saveAlbum,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF522A04),
+                  ),
+                  child: Text(
+                    'Create',
+                    style: GoogleFonts.poppins(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
         );
-      }
-    });
+      },
+    );
+
+    // Handle the result from the dialog
+    if (result != null) {
+      final name = result['name']!;
+      final date = result['date']!; // GRAB THE NEW DATE
+
+      // Add album with both "name" and "date" keys
+      setState(() {
+        _albums.add({"name": name, "date": date}); 
+      });
+
+      _saveAlbums();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Album "$name" created.')),
+      );
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -224,23 +315,13 @@ class _HomePageState extends State<HomePage> {
                                         TextSpan(
                                           text: 'SPOT',
                                           style: TextStyle(
-                                            color: Color.fromARGB(
-                                              255,
-                                              128,
-                                              68,
-                                              12,
-                                            ),
+                                            color: Color.fromARGB(255, 128, 68, 12),
                                           ),
                                         ),
                                         TextSpan(
                                           text: 'ato',
                                           style: TextStyle(
-                                            color: Color.fromARGB(
-                                              255,
-                                              236,
-                                              185,
-                                              74,
-                                            ),
+                                            color: Color.fromARGB(255, 236, 185, 74),
                                           ),
                                         ),
                                       ],
@@ -249,7 +330,8 @@ class _HomePageState extends State<HomePage> {
                                   Text(
                                     "at your service!",
                                     style: GoogleFonts.poppins(
-                                      color: Color.fromARGB(255, 160, 98, 45),
+                                      color: const Color.fromARGB(
+                                          255, 160, 98, 45),
                                       fontSize: 15,
                                     ),
                                   ),
@@ -301,10 +383,11 @@ class _HomePageState extends State<HomePage> {
                         color: Color.fromARGB(255, 128, 68, 12),
                       ),
                       tooltip: "Add Album",
-                      onPressed: _addNewAlbum,
+                      onPressed: _showCreateAlbumDialog,
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
+                      icon: const Icon(Icons.delete,
+                          color: Color.fromARGB(255, 255, 0, 0)),
                       tooltip: "Delete Selected",
                       onPressed: _deleteSelectedAlbums,
                     ),
@@ -313,30 +396,42 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-
-          // small space between text & cards
           const SizedBox(height: 8),
 
-          // ✅ Album list (fixed padding issue)
+          // Album list
           _albums.isEmpty
-              ? const Text(
-                  "No albums yet. Create one!",
-                  style: TextStyle(color: Colors.grey),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                    child: Text.rich(
+                      textAlign: TextAlign.center,
+                      TextSpan(
+                        style: GoogleFonts.poppins(fontSize: 14),
+                        children: const <TextSpan>[
+                          TextSpan(
+                            text: "No albums yet.\n",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          TextSpan(
+                            text: "Click the + to Create one!\n",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          TextSpan(
+                            text: "Long press to delete an album.",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 )
               : Expanded(
                   child: ListView.builder(
-                    padding: EdgeInsets.zero, // 👈 removes hidden top padding
+                    padding: EdgeInsets.zero,
                     shrinkWrap: true,
-                    // Use ScrollPhysics if the outer Column/screen is too small,
-                    // otherwise, if the list is guaranteed to fit in the remaining space,
-                    // NeverScrollableScrollPhysics is fine.
-                    // Changed to ClampingScrollPhysics in case more than 5 items are needed later,
-                    // but keeping as NeverScrollableScrollPhysics to honor the original.
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _albums.length > 5 ? 5 : _albums.length,
+                    physics: const AlwaysScrollableScrollPhysics(), 
+                    itemCount: _albums.length, 
                     itemBuilder: (context, index) {
-                      // Correctly handle index after sorting/filtering if needed,
-                      // but here indices map directly to _albums list.
                       final album = _albums[index];
                       final isSelected = _selectedAlbums.contains(index);
 
@@ -350,14 +445,32 @@ class _HomePageState extends State<HomePage> {
                         ),
                         color: isSelected
                             ? Colors.brown.withOpacity(0.2)
-                            : null,
+                            : const Color(0xFFFFFFFF),
                         child: ListTile(
                           leading: Icon(
-                            isSelected ? Icons.check_circle : Icons.photo_album,
+                            isSelected
+                                ? Icons.check_circle
+                                : Icons.photo_album,
                             color: const Color(0xFF80440C),
                           ),
-                          title: Text(album["name"] ?? ""),
-                          subtitle: Text("Date: ${album["date"]}"),
+                          // ALBUM TITLE (Name)
+                          title: Text(
+                            album["name"] ?? "",
+                            style: GoogleFonts.poppins(
+                              color: const Color(0xFF80440C), 
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          // ALBUM SUBTITLE (Date Created)
+                          subtitle: Text(
+                            album["date"] != null
+                                ? "Date Created: ${album["date"]!}"
+                                : "Date Created: N/A", // Fallback for old albums
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Color.fromARGB(255, 236, 185, 74),
+                            ),
+                          ),
                           onTap: () {
                             if (_selectionMode) {
                               _toggleSelection(index);
@@ -367,7 +480,8 @@ class _HomePageState extends State<HomePage> {
                                 MaterialPageRoute(
                                   builder: (context) => AlbumDetail(
                                     albumName: album["name"]!,
-                                    date: album["date"]!,
+                                    // Pass the date, or an empty string if not found
+                                    date: album["date"] ?? '', 
                                   ),
                                 ),
                               );
@@ -386,4 +500,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-// Keep NewAlbumPage as is, no changes needed for local storage as it only returns the new data.
