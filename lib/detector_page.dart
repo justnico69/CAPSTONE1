@@ -82,6 +82,25 @@ class _DetectorPageState extends State<DetectorPage> {
     }
   }
 
+  // Normalize fungi/phytophthora/blight → Blight
+  String _normalizeToBlight(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('blight') ||
+        lower.contains('fungi') ||
+        lower.contains('phytophthora')) {
+      return 'Blight';
+    }
+    return raw;
+  }
+
+  // Choose highlight color based on final prediction
+  Color _getHighlightColor(String prediction) {
+    final lower = prediction.toLowerCase();
+    if (lower == 'blight') return Colors.redAccent;
+    if (lower == 'healthy') return Colors.green;
+    return Colors.grey;
+  }
+
   Future<void> _runAnalysis(File image) async {
     if (_interpreter == null || _labels.isEmpty) {
       setState(() {
@@ -140,13 +159,16 @@ class _DetectorPageState extends State<DetectorPage> {
         }
       }
 
-      // --- DEBUGGING STATEMENTS ---
+      // Debugging logs
       print("\n--- Analysis Results ---");
       print("Analysis Started: ${DateFormat('h:mm:ss a').format(startTime)}");
       print("Best Index: $bestIndex");
       print("Max Confidence: ${maxScore.toStringAsFixed(4)}");
       if (bestIndex != -1) {
-        print("Predicted Label: ${_labels[bestIndex]}");
+        print("Raw Predicted Label: ${_labels[bestIndex]}");
+        print(
+          "Display Predicted Label: ${_normalizeToBlight(_labels[bestIndex])}",
+        );
       } else {
         print("Predicted Label: Unknown");
       }
@@ -157,7 +179,7 @@ class _DetectorPageState extends State<DetectorPage> {
         _analysisDuration = endTime.difference(startTime);
         _analysisTimestamp = endTime;
         if (bestIndex != -1 && maxScore > _confidenceThreshold) {
-          _prediction = _labels[bestIndex];
+          _prediction = _normalizeToBlight(_labels[bestIndex]);
           _confidence = maxScore;
         } else {
           _prediction = "Unknown";
@@ -211,7 +233,9 @@ class _DetectorPageState extends State<DetectorPage> {
     if (pickedFile != null) {
       print("User picked an image: ${pickedFile.path}");
       await _runAnalysis(File(pickedFile.path));
-      if (_prediction != '---' && _confidence > _confidenceThreshold) {
+      if (_prediction != '---' &&
+          _prediction != "Unknown" &&
+          _confidence > _confidenceThreshold) {
         print("Prediction meets threshold. Saving to history...");
         HistoryStorage().addResult(
           DetectionResult(
@@ -256,13 +280,10 @@ class _DetectorPageState extends State<DetectorPage> {
             (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
           );
 
-        final imageFiles = files
-            .where(
-              (file) =>
-                  file.path.toLowerCase().endsWith('.jpg') ||
-                  file.path.toLowerCase().endsWith('.png'),
-            )
-            .toList();
+        final imageFiles = files.where((file) {
+          return file.path.toLowerCase().endsWith('.jpg') ||
+              file.path.toLowerCase().endsWith('.png');
+        }).toList();
 
         if (imageFiles.isEmpty) {
           print("No image files found in DCIM/Camera.");
@@ -271,13 +292,11 @@ class _DetectorPageState extends State<DetectorPage> {
 
         File newImage = File(imageFiles.first.path);
 
-        // This is a crucial check. It prevents re-analyzing the same image.
         if (_latestImage?.path != newImage.path) {
           print("New image found: ${newImage.path}. Analyzing...");
           _latestImage = newImage;
           await _runAnalysis(newImage);
 
-          // Check if a valid prediction was made and confidence is high enough.
           if (_prediction != '---' &&
               _prediction != "Unknown" &&
               _confidence > _confidenceThreshold) {
@@ -310,6 +329,7 @@ class _DetectorPageState extends State<DetectorPage> {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
+    final highlightColor = _getHighlightColor(_prediction);
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -344,10 +364,8 @@ class _DetectorPageState extends State<DetectorPage> {
           ),
         ],
       ),
-      // --- BODY IS NOW A STACK TO POSITION THE BUTTON ---
       body: Stack(
         children: [
-          // This SingleChildScrollView contains all of your page content
           SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -419,9 +437,7 @@ class _DetectorPageState extends State<DetectorPage> {
                           icon: Icons.biotech,
                           label: "Prediction",
                           value: _prediction,
-                          valueColor: _confidence > 0.9
-                              ? Colors.redAccent
-                              : Colors.green,
+                          valueColor: highlightColor,
                         ),
                         const SizedBox(height: 16),
                         _buildDetailRow(
@@ -438,9 +454,7 @@ class _DetectorPageState extends State<DetectorPage> {
                           child: LinearProgressIndicator(
                             value: _confidence,
                             backgroundColor: Colors.grey.shade300,
-                            color: _confidence > 0.9
-                                ? Colors.redAccent
-                                : Colors.green,
+                            color: highlightColor,
                             minHeight: 8,
                           ),
                         ),
@@ -476,17 +490,14 @@ class _DetectorPageState extends State<DetectorPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(
-                    height: 10,
-                  ), // Space so the FAB doesn't cover content
+                  const SizedBox(height: 10),
                 ],
               ),
             ),
           ),
-          // This is the FloatingActionButton, positioned within the Stack
           Positioned(
-            bottom: 30, // Adjust this value to move it higher or lower
-            right: 24, // Adjust this for padding from the right edge
+            bottom: 30,
+            right: 24,
             child: FloatingActionButton(
               onPressed: _pickImage,
               backgroundColor: const Color(0xFFEAA944),
