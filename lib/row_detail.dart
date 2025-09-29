@@ -11,7 +11,7 @@ import 'package:installed_apps/installed_apps.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
-import 'analysis.dart'; // Import the standalone analysis function
+import 'analysis.dart'; // Import the standalone analysis function with prefix
 import 'config.dart'; // Import config for constants and model
 
 // =================== RowDetailPage (detection) ===================

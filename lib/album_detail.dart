@@ -7,7 +7,8 @@ import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'row_detail.dart'; // Import RowDetailPage
+// TODO: Replace the import path below with the actual location of RowDetailPage
+import 'row_detail.dart';
 
 // =================== AlbumDetail (rows) ===================
 class AlbumDetail extends StatefulWidget {
