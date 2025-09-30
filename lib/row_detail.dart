@@ -14,18 +14,20 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'analysis.dart'; // Import the standalone analysis function
 import 'config.dart'; // Import config for constants and model
 
-// Define the dark brown color for reuse (assuming it was in your other files)
+// Define the dark brown color for reuse
 const Color kDarkBrown = Color(0xFF522A04);
 
 // =================== RowDetailPage (detection) ===================
 class RowDetailPage extends StatefulWidget {
-  final String albumName;
-  final String rowName;
-  final String telloPackage;
+  final String albumName; // album container name (e.g. "September")
+  final DayFolder dayFolder; // the day subfolder (e.g. "Day 1")
+  final String rowName; // add this field for row name
+  final String telloPackage; // optional package name for Tello
 
   const RowDetailPage({
     Key? key,
     required this.albumName,
+    required this.dayFolder,
     required this.rowName,
     this.telloPackage = '',
   }) : super(key: key);
@@ -60,7 +62,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
     globalInterpreter?.close();
     super.dispose();
   }
-  // ... (rest of the state methods remain the same) ...
 
   Future<void> _checkTelloApp() async {
     try {
@@ -96,29 +97,30 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  Future<Directory> _getRowDir() async {
+  // Use albumName + dayFolder.title to form the folder path
+  Future<Directory> _getDayDir() async {
     final dir = await getApplicationDocumentsDirectory();
-    final rowDir = Directory(
-      '${dir.path}/SPOTATO/${widget.albumName}/${widget.rowName}',
+    final dayDir = Directory(
+      '${dir.path}/SPOTATO/${widget.albumName}/${widget.dayFolder.title}',
     );
-    if (!await rowDir.exists()) await rowDir.create(recursive: true);
-    return rowDir;
+    if (!await dayDir.exists()) await dayDir.create(recursive: true);
+    return dayDir;
   }
 
-  File _resultsJsonFile(Directory rowDir) =>
-      File('${rowDir.path}/results.json');
+  File _resultsJsonFile(Directory dayDir) =>
+      File('${dayDir.path}/results.json');
 
-  Future<void> _saveResultsJson(Directory rowDir) async {
+  Future<void> _saveResultsJson(Directory dayDir) async {
     final list = _results.map((r) => r.toJson()).toList();
-    await _resultsJsonFile(rowDir).writeAsString(jsonEncode(list));
+    await _resultsJsonFile(dayDir).writeAsString(jsonEncode(list));
   }
 
   Future<void> _loadImagesAndResults() async {
-    final rowDir = await _getRowDir();
-    final files = rowDir.listSync().whereType<File>().toList();
+    final dayDir = await _getDayDir();
+    final files = dayDir.listSync().whereType<File>().toList();
 
     List<Map<String, dynamic>> cached = [];
-    final jsonFile = _resultsJsonFile(rowDir);
+    final jsonFile = _resultsJsonFile(dayDir);
     if (await jsonFile.exists()) {
       try {
         final txt = await jsonFile.readAsString();
@@ -163,16 +165,16 @@ class _RowDetailPageState extends State<RowDetailPage> {
     setState(() => _showImportOptions = false); // Close menu
     final picked = await _picker.pickImage(source: ImageSource.gallery);
     if (picked == null) return;
-    final rowDir = await _getRowDir();
+    final dayDir = await _getDayDir();
     final name = picked.path.split('/').last;
-    final dest = File('${rowDir.path}/$name');
+    final dest = File('${dayDir.path}/$name');
 
     await File(picked.path).copy(dest.path);
 
     final newRes = DetectionResult(file: dest);
     setState(() => _results.add(newRes));
     await _runAnalysis(newRes);
-    await _saveResultsJson(rowDir);
+    await _saveResultsJson(dayDir);
   }
 
   Future<void> launchTello() async {
@@ -186,17 +188,17 @@ class _RowDetailPageState extends State<RowDetailPage> {
     await InstalledApps.startApp(_telloPackage);
     await Future.delayed(const Duration(seconds: 4));
     await _importFromTelloFolder();
-    await _saveResultsJson(await _getRowDir());
+    await _saveResultsJson(await _getDayDir());
   }
 
   Future<void> _importFromTelloFolder() async {
     final dir = Directory('/storage/emulated/0/DCIM/Tello');
     if (!await dir.exists()) return;
-    final rowDir = await _getRowDir();
+    final dayDir = await _getDayDir();
     final telloFiles = dir.listSync().whereType<File>().toList();
     for (var f in telloFiles) {
       final name = f.uri.pathSegments.last;
-      final dest = File('${rowDir.path}/$name');
+      final dest = File('${dayDir.path}/$name');
       if (!await dest.exists()) {
         try {
           await f.copy(dest.path);
@@ -227,8 +229,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
     // 4. Save results (if successful)
     if (res.label != null && res.label != 'Unknown') {
       try {
-        final rowDir = await _getRowDir();
-        await _saveResultsJson(rowDir);
+        final dayDir = await _getDayDir();
+        await _saveResultsJson(dayDir);
       } catch (e) {
         debugPrint('Failed saving results.json: $e');
       }
@@ -244,7 +246,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     for (var r in _results) {
       await _runAnalysis(r);
     }
-    await _saveResultsJson(await _getRowDir());
+    await _saveResultsJson(await _getDayDir());
   }
 
   // ---------------- UI & helpers ----------------
@@ -390,7 +392,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
       appBar: AppBar(
         backgroundColor: kLightBackground,
         title: Text(
-          '${widget.rowName} — ${widget.albumName}',
+          widget.dayFolder.title,
           style: GoogleFonts.poppins(
             color: kDarkBrown,
             fontWeight: FontWeight.bold,
@@ -406,7 +408,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
           ),
         ],
       ),
-      // Add the primary FAB for opening the menu
       floatingActionButton: FloatingActionButton(
         heroTag: 'addBtn',
         backgroundColor: kDarkBrown,
@@ -418,10 +419,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
           });
         },
       ),
-
-      // APPBAR
       body: Padding(
-        padding: const EdgeInsets.only(top: 10.0), // Padding for the AppBar
+        padding: const EdgeInsets.only(top: 10.0),
         child: Stack(
           children: [
             GridView.builder(
@@ -434,7 +433,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
               itemCount: _results.length,
               itemBuilder: (ctx, i) => _buildImageTile(_results[i]),
             ),
-
             _buildImportOverlay(),
           ],
         ),

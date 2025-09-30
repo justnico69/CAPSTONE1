@@ -3,19 +3,21 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // for FilteringTextInputFormatter
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'row_detail.dart';
+import 'config.dart'; // for DayFolder
+import 'day_detail.dart';
 
 // Define the dark brown color for reuse
 const Color kDarkBrown = Color(0xFF522A04);
 // Define a light background color for the Card/Container
 const Color kLightBrownBackground = Color.fromARGB(255, 255, 251, 245);
 
-// =================== AlbumDetail (rows) ===================
+// =================== AlbumDetail (rows / days) ===================
 class AlbumDetail extends StatefulWidget {
   final String albumName;
   final String date;
@@ -68,16 +70,42 @@ class _AlbumDetailState extends State<AlbumDetail> {
     final subdirs = albumDir.listSync().whereType<Directory>();
     setState(() {
       _rows = subdirs.map((d) => d.path.split('/').last).toList();
+      _rows.sort((a, b) {
+        // try to keep Day 1, Day 2 ordering if names follow "Day N"
+        final aNum = _extractDayNumber(a);
+        final bNum = _extractDayNumber(b);
+        if (aNum != null && bNum != null) return aNum.compareTo(bNum);
+        return a.compareTo(b);
+      });
     });
   }
 
-  Future<void> _addRow() async {
-    final controller = TextEditingController();
+  int? _extractDayNumber(String name) {
+    // Attempts to parse "Day N" and return N. Otherwise null.
+    final lower = name.toLowerCase().trim();
+    if (lower.startsWith('day')) {
+      final rest = lower.replaceFirst('day', '').trim();
+      final num = int.tryParse(rest);
+      return num;
+    }
+    return null;
+  }
+
+  Future<void> _addDay() async {
+    // Compute suggested next day number
+    int nextNumber = 1;
+    final numbers = _rows.map((r) => _extractDayNumber(r)).whereType<int>();
+    if (numbers.isNotEmpty) {
+      nextNumber = (numbers.reduce((a, b) => a > b ? a : b)) + 1;
+    }
+
+    final controller = TextEditingController(text: nextNumber.toString());
+
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'Add Row/Column',
+          'Create Day folder',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             color: kDarkBrown,
@@ -85,9 +113,12 @@ class _AlbumDetailState extends State<AlbumDetail> {
         ),
         content: TextField(
           controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
-            hintText: 'e.g. ROW1',
-            hintStyle: GoogleFonts.poppins(),
+            hintText: 'Enter day number (e.g. 1)',
+            hintStyle: GoogleFonts.poppins(fontSize: 13),
           ),
           style: GoogleFonts.poppins(),
         ),
@@ -100,19 +131,58 @@ class _AlbumDetailState extends State<AlbumDetail> {
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: Text('Add', style: GoogleFonts.poppins(color: kDarkBrown)),
+            onPressed: () {
+              final text = controller.text.trim();
+              Navigator.pop(ctx, text.isEmpty ? null : text);
+            },
+            child: Text(
+              'Create',
+              style: GoogleFonts.poppins(color: kDarkBrown),
+            ),
           ),
         ],
       ),
     );
 
-    if (name != null && name.isNotEmpty) {
-      final albumDir = await _getAlbumDir();
-      final rowDir = Directory('${albumDir.path}/$name');
-      if (!await rowDir.exists()) await rowDir.create();
-      await _loadRows();
+    // If user cancelled, name==null -> do nothing
+    if (name == null) return;
+
+    // Parse number or fallback to nextNumber
+    final num = int.tryParse(name) ?? nextNumber;
+    final dayName = 'Day $num';
+
+    // If day already exists, show snackbar
+    if (_rows.contains(dayName)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$dayName already exists',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
     }
+
+    // Create the directory and refresh list
+    final albumDir = await _getAlbumDir();
+    final rowDir = Directory('${albumDir.path}/$dayName');
+    if (!await rowDir.exists()) {
+      await rowDir.create(recursive: true);
+    }
+    await _loadRows();
+
+    // Optionally open created day immediately:
+    _openRow(dayName);
+
+    // Notify success
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Created $dayName', style: GoogleFonts.poppins()),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   Future<void> _deleteRow(String rowName) async {
@@ -121,16 +191,23 @@ class _AlbumDetailState extends State<AlbumDetail> {
     if (await rowDir.exists()) {
       await rowDir.delete(recursive: true);
       await _loadRows();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deleted $rowName', style: GoogleFonts.poppins()),
+        ),
+      );
     }
   }
 
+  // Build a DayFolder and pass to RowDetailPage (keeps compatibility)
   void _openRow(String rowName) {
+    final day = DayFolder(title: rowName);
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RowDetailPage(
+        builder: (_) => DayDetailPage(
           albumName: widget.albumName,
-          rowName: rowName,
+          dayFolder: day,
           telloPackage: _telloPackage,
         ),
       ),
@@ -154,61 +231,71 @@ class _AlbumDetailState extends State<AlbumDetail> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add, color: kDarkBrown),
-            onPressed: _addRow,
+            onPressed: _addDay,
+            tooltip: 'Add Day folder',
           ),
         ],
       ),
-      body: ListView.builder(
-        // Re-add '+ 1' to the item count to make space for the SizedBox
-        itemCount: _rows.length + 1,
-        itemBuilder: (ctx, i) {
-          // If this is the first index, return the SizedBox for spacing
-          if (i == 0) {
-            return const SizedBox(
-              height: 10.0,
-            ); // Adjust height for desired space
-          }
-
-          // For all subsequent items, fetch the row data using the adjusted index
-          final row = _rows[i - 1];
-
-          return Card(
-            color: const Color(0xFFFFFFFF),
-            // Margin is kept for spacing between cards
-            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 2.0, // Slight shadow
-            child: ListTile(
-              // Add a leading icon for visual appeal
-              leading: Icon(
-                Icons.local_florist,
-                color: kDarkBrown.withOpacity(0.8),
+      body: RefreshIndicator(
+        onRefresh: _loadRows,
+        child: ListView.builder(
+          padding: const EdgeInsets.only(top: 10),
+          itemCount: _rows.length + 1,
+          itemBuilder: (ctx, i) {
+            if (i == 0) {
+              return const SizedBox(height: 8.0);
+            }
+            final row = _rows[i - 1];
+            return Card(
+              color: const Color(0xFFFFFFFF),
+              margin: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
               ),
-              title: Text(
-                row,
-                style: GoogleFonts.poppins(
-                  color: kDarkBrown,
-                  fontWeight: FontWeight.w600,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2.0,
+              child: ListTile(
+                leading: Icon(
+                  Icons.calendar_today,
+                  color: kDarkBrown.withOpacity(0.9),
                 ),
-              ),
-              // Subtitle for the list item
-              subtitle: Text(
-                'Date: ${widget.date}', // Display the album's date
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  color: Color.fromARGB(255, 236, 185, 74),
+                title: Text(
+                  row,
+                  style: GoogleFonts.poppins(
+                    color: kDarkBrown,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+                subtitle: Text(
+                  'Date: ${widget.date}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: Color.fromARGB(255, 236, 185, 74),
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _deleteRow(row),
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+                onTap: () => _openRow(row),
               ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => _deleteRow(row),
-              ),
-              onTap: () => _openRow(row),
-            ),
-          );
-        },
+            );
+          },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: kDarkBrown,
+        child: const Icon(Icons.add),
+        onPressed: _addDay,
+        tooltip: 'Add Day',
       ),
     );
   }

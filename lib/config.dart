@@ -6,9 +6,9 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
-// ------------------------------------------------------
-// CONFIG
-// ------------------------------------------------------
+//
+// CONFIG - change model asset path if needed
+//
 const String kModelAssetPath = 'assets/models/model.tflite';
 const int kModelInputSize = 300; // must match training input size
 const double kConfidenceThreshold = 0.35;
@@ -66,6 +66,27 @@ class DetectionResult {
 }
 
 // ------------------------------------------------------
+// Album / DayFolder models (NEW) - used by DayScreen
+// ------------------------------------------------------
+class Album {
+  final String name;
+  final DateTime createdAt;
+  final List<DayFolder> days;
+
+  Album({required this.name, DateTime? createdAt, List<DayFolder>? days})
+    : createdAt = createdAt ?? DateTime.now(),
+      days = days ?? [];
+}
+
+class DayFolder {
+  String title; // e.g. "Day 1"
+  final List<String> imagePaths; // list of file paths (strings)
+
+  DayFolder({required this.title, List<String>? imagePaths})
+    : imagePaths = imagePaths ?? [];
+}
+
+// ------------------------------------------------------
 // Globals for the interpreter and tensor info
 // ------------------------------------------------------
 Interpreter? globalInterpreter;
@@ -85,22 +106,40 @@ String sha256FromBytes(Uint8List bytes) {
 Future<void> loadModelFromAsset() async {
   try {
     globalInterpreter = await Interpreter.fromAsset(kModelAssetPath);
-    globalInputType = globalInterpreter!.getInputTensors()[0].type;
-    globalInputShape = globalInterpreter!.getInputTensors()[0].shape;
 
-    // Print interpreter info
+    // populate input tensor info
+    final inT = globalInterpreter!.getInputTensor(0);
+    globalInputType = inT.type;
+    globalInputShape = inT.shape;
+
+    // Print quick info
     print('TFLite model loaded from $kModelAssetPath');
     print('Input type: $globalInputType');
     print('Input shape: $globalInputShape');
 
-    // Print model size + SHA256
-    final modelData = (await rootBundle.load(
-      kModelAssetPath,
-    )).buffer.asUint8List();
-    final modelHash = sha256FromBytes(modelData);
-    print('Model asset size: ${modelData.length} bytes');
-    print('Model SHA256: $modelHash');
+    // Print asset model hash (for debugging parity with Colab)
+    try {
+      final modelData = (await rootBundle.load(
+        kModelAssetPath,
+      )).buffer.asUint8List();
+      final modelHash = sha256FromBytes(modelData);
+      print('Model asset size: ${modelData.length} bytes');
+      print('Model SHA256: $modelHash');
+    } catch (e) {
+      print('Could not compute model asset hash: $e');
+    }
   } catch (e) {
     print('Error loading TFLite model: $e');
+    rethrow;
   }
+}
+
+// Close model helper (call on dispose if needed)
+void closeModel() {
+  try {
+    globalInterpreter?.close();
+  } catch (_) {}
+  globalInterpreter = null;
+  globalInputShape = null;
+  globalInputType = null;
 }
