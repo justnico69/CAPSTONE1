@@ -11,8 +11,11 @@ import 'package:installed_apps/installed_apps.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
-import 'analysis.dart'; // Import the standalone analysis function with prefix
+import 'analysis.dart'; // Import the standalone analysis function
 import 'config.dart'; // Import config for constants and model
+
+// Define the dark brown color for reuse (assuming it was in your other files)
+const Color kDarkBrown = Color(0xFF522A04);
 
 // =================== RowDetailPage (detection) ===================
 class RowDetailPage extends StatefulWidget {
@@ -36,6 +39,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
   List<DetectionResult> _results = [];
   String _telloPackage = '';
   bool _modelLoaded = false;
+  // State variable to control the visibility of the import menu
+  bool _showImportOptions = false;
 
   @override
   void initState() {
@@ -55,6 +60,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     globalInterpreter?.close();
     super.dispose();
   }
+  // ... (rest of the state methods remain the same) ...
 
   Future<void> _checkTelloApp() async {
     try {
@@ -154,6 +160,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
   }
 
   Future<void> _pickFromGallery() async {
+    setState(() => _showImportOptions = false); // Close menu
     final picked = await _picker.pickImage(source: ImageSource.gallery);
     if (picked == null) return;
     final rowDir = await _getRowDir();
@@ -169,6 +176,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
   }
 
   Future<void> launchTello() async {
+    setState(() => _showImportOptions = false); // Close menu
     if (_telloPackage.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -323,46 +331,100 @@ class _RowDetailPageState extends State<RowDetailPage> {
     );
   }
 
+  // The widget that displays the import buttons over the screen
+  Widget _buildImportOverlay() {
+    if (!_showImportOptions) return const SizedBox.shrink();
+
+    // FLOATING BUTTON
+    return GestureDetector(
+      onTap: () => setState(() => _showImportOptions = false),
+      child: Container(
+        color: Colors.black.withOpacity(0.5),
+        child: Stack(
+          children: [
+            Positioned(
+              right: 16.0,
+              bottom: 110.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // 1. Gallery Button
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: FloatingActionButton.extended(
+                      heroTag: 'galleryBtn',
+                      onPressed: _pickFromGallery,
+                      label: Text('Gallery', style: GoogleFonts.poppins()),
+                      icon: const Icon(Icons.photo_library),
+                      backgroundColor: Colors.white,
+                      foregroundColor: kDarkBrown,
+                    ),
+                  ),
+                  // 2. Tello Button
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 18.0),
+                    child: FloatingActionButton.extended(
+                      heroTag: 'telloBtn',
+                      onPressed: launchTello,
+                      label: Text('Tello Drone', style: GoogleFonts.poppins()),
+                      icon: const Icon(Icons.airplanemode_active),
+                      backgroundColor: Colors.white,
+                      foregroundColor: kDarkBrown,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    const Color kLightBackground = Colors.white;
+
     return Scaffold(
+      backgroundColor: const Color.fromARGB(243, 248, 248, 248),
       appBar: AppBar(
-        title: Text('${widget.rowName} — ${widget.albumName}'),
+        backgroundColor: kLightBackground,
+        title: Text(
+          '${widget.rowName} — ${widget.albumName}',
+          style: GoogleFonts.poppins(
+            color: kDarkBrown,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: kDarkBrown),
         actions: [
-          // NOTE: The crop toggle logic was removed as it makes the analysis
-          // function overly complicated to make standalone. I recommend sticking
-          // to a single resizing method unless a model requires center-crop.
-          // I replaced it with a simple refresh button.
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Re-run analysis',
-            onPressed: () async {
-              await _reAnalyzeAll();
-            },
+            color: kDarkBrown,
+            onPressed: _reAnalyzeAll,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ElevatedButton.icon(
-                icon: const Icon(Icons.airplanemode_active),
-                label: const Text('Tello Drone'),
-                onPressed: launchTello,
-              ),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.photo),
-                label: const Text('Gallery'),
-                onPressed: _pickFromGallery,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: GridView.builder(
+      // Add the primary FAB for opening the menu
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'addBtn',
+        backgroundColor: kDarkBrown,
+        foregroundColor: Colors.white,
+        child: Icon(_showImportOptions ? Icons.close : Icons.add),
+        onPressed: () {
+          setState(() {
+            _showImportOptions = !_showImportOptions;
+          });
+        },
+      ),
+
+      // APPBAR
+      body: Padding(
+        padding: const EdgeInsets.only(top: 10.0), // Padding for the AppBar
+        child: Stack(
+          children: [
+            GridView.builder(
               padding: const EdgeInsets.all(8),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
@@ -372,8 +434,10 @@ class _RowDetailPageState extends State<RowDetailPage> {
               itemCount: _results.length,
               itemBuilder: (ctx, i) => _buildImageTile(_results[i]),
             ),
-          ),
-        ],
+
+            _buildImportOverlay(),
+          ],
+        ),
       ),
     );
   }

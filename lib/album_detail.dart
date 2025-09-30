@@ -3,12 +3,17 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:path_provider/path_provider.dart';
 
-// TODO: Replace the import path below with the actual location of RowDetailPage
 import 'row_detail.dart';
+
+// Define the dark brown color for reuse
+const Color kDarkBrown = Color(0xFF522A04);
+// Define a light background color for the Card/Container
+const Color kLightBrownBackground = Color.fromARGB(255, 255, 251, 245);
 
 // =================== AlbumDetail (rows) ===================
 class AlbumDetail extends StatefulWidget {
@@ -71,19 +76,32 @@ class _AlbumDetailState extends State<AlbumDetail> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add Row/Column'),
+        title: Text(
+          'Add Row/Column',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
+            color: kDarkBrown,
+          ),
+        ),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(hintText: 'e.g. ROW1'),
+          decoration: InputDecoration(
+            hintText: 'e.g. ROW1',
+            hintStyle: GoogleFonts.poppins(),
+          ),
+          style: GoogleFonts.poppins(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey[700]),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Add'),
+            child: Text('Add', style: GoogleFonts.poppins(color: kDarkBrown)),
           ),
         ],
       ),
@@ -122,21 +140,73 @@ class _AlbumDetailState extends State<AlbumDetail> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(243, 248, 248, 248),
       appBar: AppBar(
-        title: Text(widget.albumName),
-        actions: [IconButton(icon: const Icon(Icons.add), onPressed: _addRow)],
+        title: Text(
+          widget.albumName,
+          style: GoogleFonts.poppins(
+            color: kDarkBrown,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: kDarkBrown),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add, color: kDarkBrown),
+            onPressed: _addRow,
+          ),
+        ],
       ),
       body: ListView.builder(
-        itemCount: _rows.length,
+        // Re-add '+ 1' to the item count to make space for the SizedBox
+        itemCount: _rows.length + 1,
         itemBuilder: (ctx, i) {
-          final row = _rows[i];
-          return ListTile(
-            title: Text(row),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _deleteRow(row),
+          // If this is the first index, return the SizedBox for spacing
+          if (i == 0) {
+            return const SizedBox(
+              height: 10.0,
+            ); // Adjust height for desired space
+          }
+
+          // For all subsequent items, fetch the row data using the adjusted index
+          final row = _rows[i - 1];
+
+          return Card(
+            color: const Color(0xFFFFFFFF),
+            // Margin is kept for spacing between cards
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-            onTap: () => _openRow(row),
+            elevation: 2.0, // Slight shadow
+            child: ListTile(
+              // Add a leading icon for visual appeal
+              leading: Icon(
+                Icons.local_florist,
+                color: kDarkBrown.withOpacity(0.8),
+              ),
+              title: Text(
+                row,
+                style: GoogleFonts.poppins(
+                  color: kDarkBrown,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              // Subtitle for the list item
+              subtitle: Text(
+                'Date: ${widget.date}', // Display the album's date
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: Color.fromARGB(255, 236, 185, 74),
+                ),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteRow(row),
+              ),
+              onTap: () => _openRow(row),
+            ),
           );
         },
       ),
