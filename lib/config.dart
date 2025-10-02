@@ -38,12 +38,19 @@ class DetectionResult {
   bool isLoading;
   String? label;
   double confidence;
+  
+  // 🔥 ADDED FIELDS to fix errors in lib/row_detail.dart 🔥
+  Duration? analysisDuration; 
+  DateTime? captureTime;      
 
   DetectionResult({
     required this.file,
     this.isLoading = false,
     this.label,
     this.confidence = 0.0,
+    // Add new fields as optional named parameters
+    this.analysisDuration,
+    this.captureTime,
   });
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +63,8 @@ class DetectionResult {
     final name = json['path'] as String;
     final path = '${rowDir.path}/$name';
     final f = File(path);
+    // NOTE: captureTime and analysisDuration are NOT loaded from JSON,
+    // as they are typically derived from the file system or calculated later.
     return DetectionResult(
       file: f,
       isLoading: false,

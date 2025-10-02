@@ -1,4 +1,4 @@
-// lib/analysis_viewer_page.dart (Ensure it is StatelessWidget)
+// lib/analysis_viewer_page.dart
 
 import 'dart:io';
 
@@ -15,8 +15,20 @@ const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
 class AnalysisViewerPage extends StatelessWidget { 
   
   final DetectionResult detectionResult;
+  // 🔥 Fields for Dynamic Duration, Date, and Time
+  final String durationText;
+  final String dateCaptured;
+  final String timeCaptured;
 
-  const AnalysisViewerPage({super.key, required this.detectionResult});
+
+  const AnalysisViewerPage({
+    super.key, 
+    required this.detectionResult,
+    // 🔥 These fields are now populated dynamically in row_detail.dart
+    required this.durationText,
+    required this.dateCaptured,
+    required this.timeCaptured,
+  });
 
   // Helper to determine the color based on the result label
   Color _getResultColor(String? label, double confidence) {
@@ -35,6 +47,42 @@ class AnalysisViewerPage extends StatelessWidget {
     return "Analysis Complete";
   }
 
+  // Helper widget to build the detail rows
+  Widget _buildDetailRow(String label, String value, {bool isHighlighted = false}) {
+    return Container(
+      padding: isHighlighted 
+          ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+          : const EdgeInsets.symmetric(vertical: 8),
+      decoration: isHighlighted
+          ? BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              )
+          : null,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.lato(
+              fontSize: 16, 
+              color: isHighlighted ? kDarkBrown : Colors.black87,
+              fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.lato(
+              fontSize: 16, 
+              color: kDarkBrown, 
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final File imageFile = detectionResult.file;
@@ -43,13 +91,11 @@ class AnalysisViewerPage extends StatelessWidget {
     final bool fileOk = imageFile.existsSync();
     
     final Color resultColor = _getResultColor(prediction, confidence);
-    final String predictionText = prediction ?? "Not Analyzed";
     final String statusText = _getStatusText(prediction);
     
-    // 🔥 NEW: Calculate maximum available height for the image section
-    // We'll constrain the image size but allow it to size itself based on the image's aspect ratio.
-    final mediaQuery = MediaQuery.of(context);
-    final double maxImageHeight = mediaQuery.size.height * 0.5; // Example constraint: max 50% of screen height
+    // We use a fixed height for the image display relative to the screen size
+    final double imageAreaHeight = MediaQuery.of(context).size.height * 0.45;
+
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -64,39 +110,33 @@ class AnalysisViewerPage extends StatelessWidget {
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.black.withAlpha(12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                statusText,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.lato(fontSize: 16, color: Colors.black54),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // 🔥 MODIFIED: Replaced Expanded with flexible Center/ConstrainedBox
-            // This section is now flexible based on the image size
-            Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  // Max width is the screen width minus padding
-                  maxWidth: mediaQuery.size.width - 32, 
-                  maxHeight: maxImageHeight,
+      // 🔥 WRAP THE BODY CONTENT IN A SCROLL VIEW
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // --- Status Banner ---
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                child: Text(
+                  statusText,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.lato(fontSize: 16, color: Colors.black54),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // --- Image Display Area (Fixed Height) ---
+              Center(
                 child: Container(
-                  // Set padding inside the container
+                  height: imageAreaHeight, // Fixed height for image area
                   padding: const EdgeInsets.all(4), 
-                  // Removed 'flex: 3' as it's no longer Expanded
-
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -105,32 +145,26 @@ class AnalysisViewerPage extends StatelessWidget {
                   child: Center(
                     child: fileOk
                         ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              imageFile,
-                              // Use contain to respect aspect ratio and fit within constraints
-                              fit: BoxFit.contain, 
-                              // Removed width: double.infinity to allow sizing by aspect ratio
-                            ),
-                          )
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                imageFile,
+                                fit: BoxFit.contain, 
+                              ),
+                            )
                         : Icon(
-                            Icons.image_not_supported,
-                            size: 80,
-                            color: Colors.grey.shade300,
-                          ),
+                              Icons.image_not_supported,
+                              size: 80,
+                              color: Colors.grey.shade300,
+                            ),
                   ),
                 ),
               ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // 🔥 MODIFIED: Added Expanded back to the bottom container
-            // This ensures the analysis details take up the remaining space
-            Expanded( 
-              flex: 2, // Retaining the flex ratio for the remaining height
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+              
+              const SizedBox(height: 16),
+              
+              // --- Analysis Details (Now part of the scrollable content) ---
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -138,6 +172,7 @@ class AnalysisViewerPage extends StatelessWidget {
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min, // Use minimum space needed
                   children: [
                     Text(
                       "Analysis Result",
@@ -147,19 +182,11 @@ class AnalysisViewerPage extends StatelessWidget {
                       ),
                     ),
                     const Divider(),
-                    Text(
-                      predictionText,
-                      style: GoogleFonts.poppins(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w600,
-                        color: resultColor,
-                      ),
-                    ),
-                    const Spacer(),
+
                     Text(
                       "CONFIDENCE: ${(confidence * 100).toStringAsFixed(1)}%",
                       style: GoogleFonts.lato(
-                        color: Colors.grey,
+                        color: Colors.black,
                         fontSize: 12,
                       ),
                     ),
@@ -169,12 +196,28 @@ class AnalysisViewerPage extends StatelessWidget {
                       color: resultColor,
                       minHeight: 8,
                     ),
-                    const SizedBox(height: 20),
+
+                    // Dynamic Duration of Analysis
+                    _buildDetailRow("Duration of analysis", durationText),
+                    
+                    // Dynamic Date Captured (Highlighted Container)
+                    _buildDetailRow("Date Captured", dateCaptured),
+                    
+                    // Dynamic Time
+                    _buildDetailRow("Time", timeCaptured),
+                    
+                    // --- Placeholder for more analysis details if needed ---
+                    // Example of extra scrollable content:
+                    // _buildDetailRow("File Size", "${(imageFile.lengthSync() / 1024).toStringAsFixed(2)} KB"),
+                    // _buildDetailRow("Model Run", "YOLOv5-300"),
+                    // _buildDetailRow("Model Type", "TFLite Quantized"),
                   ],
                 ),
               ),
-            ),
-          ],
+              // Add a small spacer at the bottom of the scroll view
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
