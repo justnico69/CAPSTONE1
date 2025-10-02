@@ -1,4 +1,4 @@
-// album_detail.dart
+// lib/album_detail.dart
 
 import 'dart:io';
 
@@ -9,8 +9,9 @@ import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'config.dart'; // for DayFolder
-import 'day_detail.dart';
+// Removed: import 'config.dart'; // for DayFolder
+// Removed: import 'day_detail.dart';
+import 'row_detail.dart'; // NEW: Import RowDetailPage
 
 // Define the dark brown color for reuse
 const Color kDarkBrown = Color(0xFF522A04);
@@ -105,7 +106,8 @@ class _AlbumDetailState extends State<AlbumDetail> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'Create Day folder',
+          // Text changed from "Day folder" to "Row folder" since you're using 'row' concept
+          'Create Row folder',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             color: kDarkBrown,
@@ -117,7 +119,7 @@ class _AlbumDetailState extends State<AlbumDetail> {
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
-            hintText: 'Enter day number (e.g. 1)',
+            hintText: 'Enter row number (e.g. 1)',
             hintStyle: GoogleFonts.poppins(fontSize: 13),
           ),
           style: GoogleFonts.poppins(),
@@ -149,7 +151,9 @@ class _AlbumDetailState extends State<AlbumDetail> {
 
     // Parse number or fallback to nextNumber
     final num = int.tryParse(name) ?? nextNumber;
-    final dayName = 'Day $num';
+    // NOTE: Keeping the folder naming convention as 'Day N' for now, 
+    // but the concept is now a "Row" or general sub-folder.
+    final dayName = 'Day $num'; 
 
     // If day already exists, show snackbar
     if (_rows.contains(dayName)) {
@@ -199,15 +203,14 @@ class _AlbumDetailState extends State<AlbumDetail> {
     }
   }
 
-  // Build a DayFolder and pass to RowDetailPage (keeps compatibility)
+  // UPDATED: Navigates directly to RowDetailPage
   void _openRow(String rowName) {
-    final day = DayFolder(title: rowName);
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => DayDetailPage(
+        builder: (_) => RowDetailPage( // Navigate to RowDetailPage
           albumName: widget.albumName,
-          dayFolder: day,
+          rowName: rowName, // Pass the folder name as the rowName
           telloPackage: _telloPackage,
         ),
       ),
@@ -232,7 +235,7 @@ class _AlbumDetailState extends State<AlbumDetail> {
           IconButton(
             icon: const Icon(Icons.add, color: kDarkBrown),
             onPressed: _addDay,
-            tooltip: 'Add Day folder',
+            tooltip: 'Add Row folder',
           ),
         ],
       ),
@@ -295,7 +298,7 @@ class _AlbumDetailState extends State<AlbumDetail> {
         backgroundColor: kDarkBrown,
         child: const Icon(Icons.add),
         onPressed: _addDay,
-        tooltip: 'Add Day',
+        tooltip: 'Add Row',
       ),
     );
   }
