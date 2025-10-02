@@ -44,7 +44,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
   String _telloPackage = '';
   bool _modelLoaded = false;
   
-  // 🔥 CODE ADDED: State for selection/editing mode
+  // State for selection/editing mode
   bool _isSelectionMode = false;
   final Set<DetectionResult> _selectedResults = {};
 
@@ -119,7 +119,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
   Future<void> _saveResultsJson(Directory dayDir) async {
     // Only save results for files that still exist
     final existingResults = _results.where((r) => r.file.existsSync()).toList();
-    final list = existingResults.map((r) => r.toJson()).toList();
+    // NOTE: We only save label and confidence to JSON, not transient data like Duration/DateTime
+    final list = existingResults.map((r) => r.toJson()).toList(); 
     await _resultsJsonFile(dayDir).writeAsString(jsonEncode(list));
   }
 
@@ -148,17 +149,23 @@ class _RowDetailPageState extends State<RowDetailPage> {
     final List<DetectionResult> list = [];
     for (var f in files) {
       final name = f.path.split('/').last;
+      
+      // Get the file's last modified time (used as capture time)
+      final DateTime captureTime = f.lastModifiedSync();
+
+      // FIX 1: Pass captureTime to the constructor
+      final r = DetectionResult(
+        file: f,
+        captureTime: captureTime,
+      );
+
+      // Check cache for existing analysis results
       if (cacheMap.containsKey(name)) {
         final cachedObj = cacheMap[name]!;
-        final r = DetectionResult(
-          file: f,
-          label: cachedObj['label'] as String?,
-          confidence: (cachedObj['confidence'] ?? 0.0).toDouble(),
-        );
-        list.add(r);
-      } else {
-        list.add(DetectionResult(file: f));
+        r.label = cachedObj['label'] as String?;
+        r.confidence = (cachedObj['confidence'] ?? 0.0).toDouble();
       }
+      list.add(r);
     }
 
     setState(() => _results = list);
@@ -177,8 +184,10 @@ class _RowDetailPageState extends State<RowDetailPage> {
     final dest = File('${dayDir.path}/$name');
 
     await File(picked.path).copy(dest.path);
-
-    final newRes = DetectionResult(file: dest);
+    
+    // Set capture time from the newly copied file's modified time
+    // FIX 2: Pass captureTime to the constructor
+    final newRes = DetectionResult(file: dest, captureTime: dest.lastModifiedSync());
     setState(() => _results.add(newRes));
     await _runAnalysis(newRes);
     await _saveResultsJson(dayDir);
@@ -208,7 +217,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
       if (!await dest.exists()) {
         try {
           await f.copy(dest.path);
-          final newRes = DetectionResult(file: dest);
+          // FIX 3: Pass captureTime to the constructor
+          final newRes = DetectionResult(file: dest, captureTime: dest.lastModifiedSync());
           setState(() => _results.add(newRes));
           await _runAnalysis(newRes);
         } catch (e) {
@@ -222,9 +232,17 @@ class _RowDetailPageState extends State<RowDetailPage> {
   Future<void> _runAnalysis(DetectionResult res) async {
     // 1. Set loading state locally (on the UI)
     setState(() => res.isLoading = true);
+    
+    // START TIMER
+    final stopwatch = Stopwatch()..start(); 
 
     // 2. Run the external analysis (modifies 'res' object internally)
     await runModelAnalysis(res);
+
+    // STOP TIMER AND SAVE DURATION
+    // FIX 4: Setter 'analysisDuration' is now available (assuming config.dart update)
+    stopwatch.stop();
+    res.analysisDuration = stopwatch.elapsed;
 
     // 3. Update UI after analysis finishes
     if (!mounted) return;
@@ -247,6 +265,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
     for (var r in _results) {
       r.label = null;
       r.confidence = 0.0;
+      // FIX 5: Setter 'analysisDuration' is now available (assuming config.dart update)
+      r.analysisDuration = null; // Reset duration for re-analysis
     }
     setState(() {});
     for (var r in _results) {
@@ -255,7 +275,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     await _saveResultsJson(await _getDayDir());
   }
   
-  // 🔥 CODE ADDED: Selection mode management logic
+  // Selection mode management logic
   void _toggleSelectionMode(DetectionResult res) {
     setState(() {
       if (!_isSelectionMode) {
@@ -291,7 +311,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     });
   }
 
-  // 🔥 CODE ADDED: Delete selected results
+  // Delete selected results
   Future<void> _deleteSelected() async {
     if (_selectedResults.isEmpty) return;
 
@@ -323,7 +343,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     );
   }
 
-  // 🔥 CODE ADDED: Move selected results (Placeholder/Notifies completion)
+  // Move selected results (Placeholder/Notifies completion)
   void _moveSelected() {
     if (_selectedResults.isEmpty) return;
     
@@ -337,9 +357,32 @@ class _RowDetailPageState extends State<RowDetailPage> {
 
 
   // ---------------- UI & helpers ----------------
+
+  // Helper to format Duration to "X secs" or "X ms"
+  String _formatDuration(Duration? duration) {
+      if (duration == null) return "N/A";
+      if (duration.inSeconds > 0) return "${duration.inSeconds} secs";
+      return "${duration.inMilliseconds} ms";
+  }
+
+  // Helper to safely format DateTime (Date part)
+  String _formatDate(DateTime? dateTime) {
+      if (dateTime == null) return "N/A";
+      return "${dateTime.month.toString().padLeft(2, '0')}/${dateTime.day.toString().padLeft(2, '0')}/${dateTime.year}";
+  }
+
+  // Helper to safely format DateTime (Time part)
+  String _formatTime(DateTime? dateTime) {
+      if (dateTime == null) return "N/A";
+      final hour = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
+      final minute = dateTime.minute.toString().padLeft(2, '0');
+      final period = dateTime.hour >= 12 ? 'pm' : 'am';
+      return "$hour:$minute$period";
+  }
+
   Widget _buildImageTile(DetectionResult res) {
     final bool fileOk = res.file.existsSync();
-    // 🔥 CODE ADDED: Check selection status
+    // Check selection status
     final bool isSelected = _selectedResults.contains(res);
     final Color indicator;
     if (res.label == null) {
@@ -353,22 +396,27 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
 
     return GestureDetector(
-      // 🔥 CODE ADDED: LongPress to enter selection mode
+      // LongPress to enter selection mode
       onLongPress: () => _toggleSelectionMode(res),
       
       onTap: () {
-        // 🔥 CODE ADDED: If in selection mode, tap toggles selection
+        // If in selection mode, tap toggles selection
         if (_isSelectionMode) {
           _toggleSelection(res);
         } else {
           // Navigate to viewer page only if not in selection mode
           if (!fileOk) return;
+          
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => AnalysisViewerPage(
                 // Pass the full DetectionResult object
                 detectionResult: res, 
+                // FIX 6: Getters 'analysisDuration' and 'captureTime' are now available
+                durationText: _formatDuration(res.analysisDuration),
+                dateCaptured: _formatDate(res.captureTime),
+                timeCaptured: _formatTime(res.captureTime),
               ),
             ),
           );
@@ -387,7 +435,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
                   ),
                 ),
 
-          // 🔥 CODE ADDED: Selection Overlay
+          // Selection Overlay
           if (_isSelectionMode)
             Container(
               color: isSelected
@@ -405,7 +453,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
               ),
             ),
 
-          // 🔥 CODE ADDED: Selection Checkmark
+          // Selection Checkmark
           if (_isSelectionMode)
             Positioned(
               right: 6,
@@ -451,7 +499,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
 
   // Widget that displays the import buttons fixed to the bottom right
   Widget _buildImportButtons() {
-    // 🔥 CODE ADDED: Hide import buttons while in selection mode
+    // Hide import buttons while in selection mode
     if (_isSelectionMode) return const SizedBox.shrink();
 
     return Positioned(
@@ -501,7 +549,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
       appBar: AppBar(
         backgroundColor: kLightBackground,
         title: Text(
-          // 🔥 CODE ADDED: Change title in selection mode
+          // Change title in selection mode
           _isSelectionMode 
               ? '${_selectedResults.length} Selected'
               : widget.rowName, 
@@ -510,7 +558,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        // 🔥 CODE ADDED: Close button in selection mode
+        // Close button in selection mode
         leading: _isSelectionMode
             ? IconButton(
                 icon: const Icon(Icons.close),
@@ -522,16 +570,16 @@ class _RowDetailPageState extends State<RowDetailPage> {
         iconTheme: const IconThemeData(color: kDarkBrown),
         actions: _isSelectionMode
             ? [
-                // 🔥 CODE ADDED: Delete button
+                // Delete button
                 IconButton(
                   icon: const Icon(Icons.delete),
                   tooltip: 'Delete Selected',
                   color: Colors.red, // Use red for deletion
                   onPressed: _deleteSelected,
                 ),
-                // 🔥 CODE ADDED: Folder/Move button
+                // Folder/Move button (using available icon)
                 IconButton(
-                  icon: const Icon(Icons.folder_open), // Icon for moving to another folder/album
+                  icon: const Icon(Icons.folder_open), 
                   tooltip: 'Move to Album',
                   color: kDarkBrown,
                   onPressed: _moveSelected,
@@ -568,7 +616,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
                 left: 8, 
                 right: 8, 
                 top: 8, 
-                // 🔥 CODE ADDED: Adjust bottom padding based on button visibility
+                // Adjust bottom padding based on button visibility
                 bottom: _isSelectionMode ? 8 : 100, 
               ),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
