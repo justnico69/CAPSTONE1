@@ -1,158 +1,254 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 
-class NewAlbumPage extends StatefulWidget {
-  const NewAlbumPage({super.key});
+import 'album_detail.dart';
+
+const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
+const Color kOrange = Color(0xFFEAA944);
+
+class AlbumsPage extends StatefulWidget {
+  const AlbumsPage({Key? key}) : super(key: key);
 
   @override
-  State<NewAlbumPage> createState() => _NewAlbumPageState();
+  State<AlbumsPage> createState() => _AlbumsPageState();
 }
 
-class _NewAlbumPageState extends State<NewAlbumPage> {
-  final TextEditingController albumNameController = TextEditingController();
-  final TextEditingController dateController = TextEditingController();
-  DateTime? selectedDate;
-
-  String? albumNameError; // 👈 for validation
+class _AlbumsPageState extends State<AlbumsPage> {
+  List<Directory> _albums = [];
+  Set<String> _selectedAlbums = {}; // ✅ holds selected folders
+  bool _selectionMode = false; // ✅ whether selection is active
 
   @override
-  void dispose() {
-    albumNameController.dispose();
-    dateController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadAlbums();
   }
 
-  Future<void> _pickDate(BuildContext context) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-        dateController.text = _formatDate(picked); // Show chosen date
-      });
+  /// ✅ Load all saved folders (albums)
+  Future<void> _loadAlbums() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final basePath = Directory('${dir.path}/SPOTATO/New Detections');
+
+    if (!await basePath.exists()) {
+      await basePath.create(recursive: true);
     }
-  }
 
-  String _formatDate(DateTime d) {
-    final y = d.year.toString();
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return '$y-$m-$day';
-  }
+    final allFolders = basePath.listSync().whereType<Directory>().toList()
+      ..sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
 
-  void _saveAndReturn() {
     setState(() {
-      albumNameError = null; // reset error
+      _albums = allFolders;
+    });
+  }
+
+  /// ✅ Delete selected albums
+  Future<void> _deleteSelected() async {
+    if (_selectedAlbums.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Albums'),
+        content: Text(
+          'Are you sure you want to delete ${_selectedAlbums.length} album(s)? This action cannot be undone.',
+          style: const TextStyle(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    for (var path in _selectedAlbums) {
+      final dir = Directory(path);
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
+    }
+
+    setState(() {
+      _selectionMode = false;
+      _selectedAlbums.clear();
     });
 
-    // ✅ Album name validation
-    if (albumNameController.text.trim().isEmpty) {
-      setState(() {
-        albumNameError = "Please enter an album name";
-      });
-      return;
+    await _loadAlbums();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('🗑 Deleted ${_selectedAlbums.length} album(s)')),
+    );
+  }
+
+  String _formatFolderName(String folderName) {
+    if (folderName.startsWith("Scan_")) {
+      return folderName.replaceFirst("Scan_", "").replaceAll("_", " ");
     }
+    return folderName;
+  }
 
-    // ✅ Date validation
-    if (selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please enter the date',
-            style: GoogleFonts.poppins(),
-          ),
-        ),
-      );
-      return;
-    }
+  String _formatDate(DateTime date) {
+    return "${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}/${date.year}";
+  }
 
-    final name = albumNameController.text.trim();
+  void _toggleSelection(String path) {
+    setState(() {
+      if (_selectedAlbums.contains(path)) {
+        _selectedAlbums.remove(path);
+      } else {
+        _selectedAlbums.add(path);
+      }
+    });
+  }
 
-    Navigator.pop(context, {
-      'name': name,
-      'date': selectedDate!.toIso8601String(),
+  void _exitSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedAlbums.clear();
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selectedAlbums = _albums.map((a) => a.path).toSet();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(243, 248, 248, 248),
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        leading: _selectionMode
+            ? IconButton(
+                icon: const Icon(Icons.close, color: kDarkBrown),
+                onPressed: _exitSelection,
+              )
+            : null,
         title: Text(
-          'Create Album',
+          _selectionMode
+              ? "${_selectedAlbums.length} selected"
+              : "Saved Albums",
           style: GoogleFonts.poppins(
-            color: const Color.fromARGB(255, 128, 68, 12),
+            color: kDarkBrown,
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: const Color.fromARGB(255, 236, 185, 74),
-        iconTheme: const IconThemeData(
-          color: Color.fromARGB(255, 128, 68, 12),
-        ),
+        actions: [
+          if (_selectionMode && _albums.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.select_all, color: kDarkBrown),
+              tooltip: "Select All",
+              onPressed: _selectAll,
+            ),
+          if (_selectionMode && _selectedAlbums.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              tooltip: "Delete Selected",
+              onPressed: _deleteSelected,
+            ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: albumNameController,
-              style: GoogleFonts.poppins(),
-              onChanged: (value) {
-                if (value.trim().isNotEmpty && albumNameError != null) {
-                  setState(() {
-                    albumNameError = null; // 👈 Clear error while typing
-                  });
-                }
-              },
-              decoration: InputDecoration(
-                labelText: 'Album name (e.g Column 1)',
-                labelStyle: GoogleFonts.poppins(),
-                border: const OutlineInputBorder(),
-                isDense: true,
-                errorText: albumNameError, // 👈 show error message
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: dateController,
-              readOnly: true, // Prevent typing
-              style: GoogleFonts.poppins(),
-              decoration: InputDecoration(
-                labelText: 'Album date',
-                labelStyle: GoogleFonts.poppins(),
-                border: const OutlineInputBorder(),
-                isDense: true,
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.calendar_today),
-                  onPressed: () => _pickDate(context),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _saveAndReturn,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF522A04),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 14,
-                ),
-              ), 
+      body: _albums.isEmpty
+          ? Center(
               child: Text(
-                'Save Album',
+                "No saved albums yet.",
                 style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[600],
+                  fontSize: 16,
                 ),
               ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: _albums.length,
+              itemBuilder: (context, index) {
+                final album = _albums[index];
+                final folderName = album.path.split('/').last;
+                final formatted = _formatFolderName(folderName);
+                final modified = album.statSync().modified;
+                final isSelected = _selectedAlbums.contains(album.path);
+
+                return GestureDetector(
+                  onLongPress: () {
+                    setState(() {
+                      _selectionMode = true;
+                      _selectedAlbums.add(album.path);
+                    });
+                  },
+                  onTap: () {
+                    if (_selectionMode) {
+                      _toggleSelection(album.path);
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AlbumDetail(
+                            albumName: folderName,
+                            date: _formatDate(modified),
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  child: Card(
+                    elevation: 4,
+                    color: isSelected ? const Color(0xFFFFF3E0) : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const Icon(Icons.folder, color: kOrange, size: 40),
+                          if (isSelected)
+                            const Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 20,
+                              ),
+                            ),
+                        ],
+                      ),
+                      title: Text(
+                        formatted,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          color: kDarkBrown,
+                        ),
+                      ),
+                      subtitle: Text(
+                        "Created: ${_formatDate(modified)}",
+                        style: GoogleFonts.poppins(fontSize: 13),
+                      ),
+                      trailing: _selectionMode
+                          ? Checkbox(
+                              value: isSelected,
+                              onChanged: (_) => _toggleSelection(album.path),
+                              activeColor: kOrange,
+                            )
+                          : const Icon(Icons.arrow_forward_ios, size: 18),
+                    ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
-      ),
     );
   }
 }

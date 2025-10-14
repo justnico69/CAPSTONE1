@@ -44,8 +44,9 @@ dependencies:
   flutter_foreground_task: ^6.1.2
   installed_apps: ^1.6.0
   material_design_icons_flutter: ^7.0.7296
+  flutter_local_notifications: ^19.4.2
   
-  sqflite: ^2.3.0
+  
   path: ^1.9.0
  
 

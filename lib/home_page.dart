@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'album_detail.dart';
+import 'album_page.dart';
 // Import the new page
 import 'row_detail.dart';
 
@@ -67,22 +65,18 @@ class _HomePageState extends State<HomePage> {
         ? const Color.fromARGB(255, 82, 42, 4)
         : Colors.grey;
 
-    return Expanded( // Wrap with Expanded for equal spacing
-      child: InkWell( // Use InkWell to make the whole area tapable
+    return Expanded(
+      // Wrap with Expanded for equal spacing
+      child: InkWell(
+        // Use InkWell to make the whole area tapable
         onTap: () {
           // Add navigation logic here if you had other pages
           if (label == "Home") {
             // Do nothing, already on Home
           } else if (label == "Albums") {
-            // Placeholder navigation to AlbumDetail
-             Navigator.push(
+            Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (context) => AlbumDetail(
-                  albumName: "Sample Album",
-                  date: "N/A",
-                ),
-              ),
+              MaterialPageRoute(builder: (context) => const AlbumsPage()),
             );
           }
         },
@@ -157,13 +151,23 @@ class _HomePageState extends State<HomePage> {
                                         TextSpan(
                                           text: 'SPOT',
                                           style: TextStyle(
-                                            color: Color.fromARGB(255, 128, 68, 12),
+                                            color: Color.fromARGB(
+                                              255,
+                                              128,
+                                              68,
+                                              12,
+                                            ),
                                           ),
                                         ),
                                         TextSpan(
                                           text: 'ato',
                                           style: TextStyle(
-                                            color: Color.fromARGB(255, 236, 185, 74),
+                                            color: Color.fromARGB(
+                                              255,
+                                              236,
+                                              185,
+                                              74,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -201,9 +205,9 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          
+
           // The main content area
-          Expanded( 
+          Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(
                 horizontal: screenWidth * 0.07,
@@ -260,8 +264,8 @@ class _HomePageState extends State<HomePage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => const RowDetailPage(
-                                    albumName: "New Detections", 
-                                    rowName: "Current Scan", 
+                                    albumName: "New Detections",
+                                    rowName: "Current Scan",
                                   ),
                                 ),
                               );
@@ -292,7 +296,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 30),
         ],
       ),
@@ -315,8 +319,8 @@ class _HomePageState extends State<HomePage> {
             ),
             // Item 2: Albums (Now navigates placeholder since albums aren't managed here)
             _buildBottomNavItem(
-              icon: Icons.photo_album, 
-              label: "Albums", 
+              icon: Icons.photo_album,
+              label: "Albums",
               isSelected: false,
               screenWidth: screenWidth,
             ),
