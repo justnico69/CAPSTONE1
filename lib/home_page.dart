@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
+import 'package:spotato/tutorial_page.dart';
 
 import 'album_page.dart';
 // Import the new page
@@ -191,11 +192,18 @@ class _HomePageState extends State<HomePage> {
                           ),
                           IconButton(
                             icon: const Icon(
-                              Icons.notifications,
+                              Icons.help_outline,
                               color: Color.fromARGB(255, 128, 68, 12),
                               size: 28,
                             ),
-                            onPressed: () {},
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const TutorialPage(),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),

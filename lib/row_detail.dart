@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -87,7 +86,9 @@ class _RowDetailPageState extends State<RowDetailPage> {
   Future<Directory> _getCurrentScanDir() async {
     final dir = await getApplicationDocumentsDirectory();
     final path = Directory('${dir.path}/SPOTATO/New Detections/Current Scan');
-    if (!await path.exists()) await path.create(recursive: true);
+    if (!await path.exists()) {
+      await path.create(recursive: true); // ✅ Recreate folder
+    }
     return path;
   }
 
@@ -193,7 +194,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
     setState(() => res.isLoading = false);
   }
 
-  /// ✅ FIXED: Save proper JSON (not Dart object string)
   Future<void> _saveCurrentScan() async {
     if (_results.isEmpty) {
       ScaffoldMessenger.of(
@@ -237,31 +237,22 @@ class _RowDetailPageState extends State<RowDetailPage> {
       await destDir.create(recursive: true);
 
       for (var res in _results) {
-        await res.file.copy(
-          '${destDir.path}/${res.file.uri.pathSegments.last}',
-        );
+        final imgName = res.file.uri.pathSegments.last;
+        final imgPath = '${destDir.path}/$imgName';
+        await res.file.copy(imgPath);
+
+        // 📝 Save metadata in a text file beside the image
+        final metaFile = File('$imgPath.txt');
+        await metaFile.writeAsString('''
+Label: ${res.label ?? 'Unknown'}
+Duration: ${res.analysisDuration?.inMilliseconds ?? 0}ms
+Captured: ${res.captureTime?.toIso8601String() ?? ''}
+''');
       }
 
-      // 🔹 Write valid JSON
-      final jsonFile = File('${destDir.path}/results.json');
-      final jsonData = _results
-          .map(
-            (r) => {
-              'filename': r.file.uri.pathSegments.last,
-              'label': r.label ?? 'Unknown',
-              'duration': r.analysisDuration?.inMilliseconds ?? 0,
-              'captured': r.captureTime?.toIso8601String() ?? '',
-            },
-          )
-          .toList();
-
-      await jsonFile.writeAsString(jsonEncode(jsonData));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Scan saved to "$folderName"')),
-        );
-      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('✅ Scan saved to "$folderName"')));
 
       await _clearCurrentScan();
     } catch (e) {
@@ -273,9 +264,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     try {
       final dir = await _getCurrentScanDir();
       if (await dir.exists()) {
-        for (var f in dir.listSync()) {
-          if (f is File) await f.delete();
-        }
+        await dir.delete(recursive: true); // ✅ remove the folder entirely
       }
       if (mounted) setState(() => _results.clear());
     } catch (e) {

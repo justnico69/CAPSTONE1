@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'analysis_viewer_page.dart';
-// Import DetectionResult from config.dart
 import 'config.dart';
 
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
@@ -31,6 +30,7 @@ class _AlbumDetailState extends State<AlbumDetail> {
     _loadSavedImages();
   }
 
+  /// 🔹 Load all images and their metadata (.txt files)
   Future<void> _loadSavedImages() async {
     final dir = await getApplicationDocumentsDirectory();
     final folder = Directory(
@@ -38,59 +38,49 @@ class _AlbumDetailState extends State<AlbumDetail> {
     );
     if (!await folder.exists()) return;
 
-    final files = folder.listSync().whereType<File>().toList();
-    final jsonFile = File('${folder.path}/results.json');
-    Map<String, String> labelMap = {};
-
-    if (await jsonFile.exists()) {
-      final content = await jsonFile.readAsString();
-      final entries = content
-          .replaceAll(RegExp(r'^\[|\]$'), '')
-          .split('},')
-          .map((e) => e.replaceAll(RegExp(r'[\[\]\{\}]'), '').trim())
-          .where((e) => e.isNotEmpty);
-
-      for (var entry in entries) {
-        final parts = entry.split(',');
-        String? filename;
-        String? label;
-        for (var part in parts) {
-          final kv = part.split(':');
-          if (kv.length == 2) {
-            final key = kv[0].trim().replaceAll("'", '');
-            final value = kv[1].trim().replaceAll("'", '');
-            if (key == 'filename') filename = value;
-            if (key == 'label') label = value;
-          }
-        }
-        if (filename != null && label != null) {
-          labelMap[filename] = label;
-        }
-      }
-    }
-
-    final loaded = files
+    final imageFiles = folder
+        .listSync()
+        .whereType<File>()
         .where((f) => f.path.endsWith('.jpg') || f.path.endsWith('.png'))
-        .map(
-          (f) => DetectionResult(
-            file: f,
-            label: labelMap[f.uri.pathSegments.last] ?? 'Unknown',
-            captureTime: f.lastModifiedSync(),
-          ),
-        )
         .toList();
 
-    setState(() => _results = loaded);
-  }
+    List<DetectionResult> loaded = [];
 
-  /// Extracts label from filename (if available)
-  String? _extractLabel(String path) {
-    final name = path.split('/').last.toLowerCase();
-    if (name.contains('healthy')) return 'Healthy';
-    if (name.contains('blight')) return 'Blight';
-    if (name.contains('early')) return 'Early Blight';
-    if (name.contains('late')) return 'Late Blight';
-    return 'Unknown';
+    for (var img in imageFiles) {
+      final metaFile = File('${img.path}.txt');
+      String label = 'Unknown';
+      Duration? duration;
+      DateTime? captured;
+
+      if (await metaFile.exists()) {
+        final lines = await metaFile.readAsLines();
+        for (var line in lines) {
+          if (line.startsWith('Label:')) {
+            label = line.replaceFirst('Label:', '').trim();
+          } else if (line.startsWith('Duration:')) {
+            final val = line
+                .replaceFirst('Duration:', '')
+                .replaceAll('ms', '')
+                .trim();
+            duration = Duration(milliseconds: int.tryParse(val) ?? 0);
+          } else if (line.startsWith('Captured:')) {
+            final val = line.replaceFirst('Captured:', '').trim();
+            if (val.isNotEmpty) captured = DateTime.tryParse(val);
+          }
+        }
+      }
+
+      loaded.add(
+        DetectionResult(
+          file: img,
+          label: label,
+          analysisDuration: duration,
+          captureTime: captured ?? img.lastModifiedSync(),
+        ),
+      );
+    }
+
+    setState(() => _results = loaded);
   }
 
   Color _getLabelColor(String? label) {
@@ -123,7 +113,7 @@ class _AlbumDetailState extends State<AlbumDetail> {
               dateCaptured:
                   "${res.captureTime?.month}/${res.captureTime?.day}/${res.captureTime?.year}",
               timeCaptured:
-                  "${res.captureTime?.hour}:${res.captureTime?.minute}",
+                  "${res.captureTime?.hour}:${res.captureTime?.minute.toString().padLeft(2, '0')}",
             ),
           ),
         );
