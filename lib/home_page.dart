@@ -1,15 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:spotato/album_page.dart';
+import 'package:spotato/analysis_viewer_page.dart'; // Make sure this exists
+import 'package:spotato/config.dart'; // For DetectionResult
+import 'package:spotato/row_detail.dart';
 import 'package:spotato/tutorial_page.dart';
-
-import 'album_page.dart';
-// Import the new page
-import 'row_detail.dart';
-
-// Assuming DayFolder is now defined/removed as needed for other files.
-// Placeholder for DayFolder is REMOVED from this file.
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,29 +20,25 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String telloPackage = '';
+  List<DetectionResult> _recentResults = [];
 
   @override
   void initState() {
     super.initState();
     checkInstalledApps();
+    _loadRecentImages().then((res) {
+      if (mounted) setState(() => _recentResults = res);
+    });
   }
 
   /// Check if Tello app is installed
   Future<void> checkInstalledApps() async {
     List<AppInfo> apps = await InstalledApps.getInstalledApps(true, true);
-
-    bool found = false;
     for (var app in apps) {
       if (app.packageName == "com.ryzerobotics.tello") {
-        debugPrint("✅ Found Tello: ${app.name} -> ${app.packageName}");
         telloPackage = app.packageName;
-        found = true;
         break;
       }
-    }
-
-    if (!found) {
-      debugPrint("❌ Tello app not found on this device.");
     }
   }
 
@@ -51,8 +47,41 @@ class _HomePageState extends State<HomePage> {
     if (telloPackage.isNotEmpty) {
       await InstalledApps.startApp(telloPackage);
     } else {
-      debugPrint("Tello package not found. Cannot launch.");
+      debugPrint("Tello package not found.");
     }
+  }
+
+  /// Load 4 most recent analyzed images from Saved Albums
+  Future<List<DetectionResult>> _loadRecentImages() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final root = Directory('${dir.path}/SPOTATO/New Detections');
+    if (!await root.exists()) return [];
+
+    final folders = root
+        .listSync()
+        .whereType<Directory>()
+        .where((d) => d.path.contains('Scan_'))
+        .toList();
+
+    List<DetectionResult> all = [];
+    for (var folder in folders) {
+      final files = folder
+          .listSync()
+          .whereType<File>()
+          .where(
+            (f) =>
+                f.path.toLowerCase().endsWith('.jpg') ||
+                f.path.toLowerCase().endsWith('.png'),
+          )
+          .toList();
+
+      for (var f in files) {
+        all.add(DetectionResult(file: f, captureTime: f.lastModifiedSync()));
+      }
+    }
+
+    all.sort((a, b) => b.captureTime!.compareTo(a.captureTime!));
+    return all.take(4).toList();
   }
 
   // --- BOTTOM NAV ITEM WIDGET ---
@@ -67,13 +96,9 @@ class _HomePageState extends State<HomePage> {
         : Colors.grey;
 
     return Expanded(
-      // Wrap with Expanded for equal spacing
       child: InkWell(
-        // Use InkWell to make the whole area tapable
         onTap: () {
-          // Add navigation logic here if you had other pages
           if (label == "Home") {
-            // Do nothing, already on Home
           } else if (label == "Albums") {
             Navigator.push(
               context,
@@ -128,10 +153,8 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Image.asset(
                                 'assets/images/spotato_logo.png',
@@ -139,7 +162,6 @@ class _HomePageState extends State<HomePage> {
                               ),
                               const SizedBox(width: 10),
                               Column(
-                                mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   RichText(
@@ -214,7 +236,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          // The main content area
+          // MAIN CONTENT
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(
@@ -233,73 +255,157 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  AspectRatio(
-                    aspectRatio: 4 / 3,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withAlpha(20),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                            ),
-                            child: Text(
-                              "No images yet. Tap Button to scan.",
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                color: Colors.grey[600],
+
+                  // IF EMPTY
+                  _recentResults.isEmpty
+                      ? Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(20),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(height: 50),
-                          ElevatedButton(
-                            onPressed: () {
-                              // FIX: Passing the two required arguments, 'dayFolder' removed.
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const RowDetailPage(
-                                    albumName: "New Detections",
-                                    rowName: "Current Scan",
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "No recent images yet. Tap Button to scan.",
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 50),
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const RowDetailPage(
+                                        albumName: "New Detections",
+                                        rowName: "Current Scan",
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFEAA944),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 40,
+                                    vertical: 16,
                                   ),
                                 ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFEAA944),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                child: Text(
+                                  "Detect Disease",
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 40,
-                                vertical: 16,
-                              ),
-                            ),
-                            child: Text(
-                              "Detect Disease",
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
+                        )
+                      // IF THERE ARE IMAGES
+                      : Column(
+                          children: [
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 10,
+                                    mainAxisSpacing: 10,
+                                  ),
+                              itemCount: _recentResults.length,
+                              itemBuilder: (_, i) {
+                                final res = _recentResults[i];
+                                return GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => AnalysisViewerPage(
+                                          detectionResult: res,
+                                          durationText:
+                                              "N/A", // or replace with duration if you have it
+                                          dateCaptured: res.captureTime != null
+                                              ? "${res.captureTime!.month}-${res.captureTime!.day}-${res.captureTime!.year}"
+                                              : "Unknown Date",
+                                          timeCaptured: res.captureTime != null
+                                              ? "${res.captureTime!.hour}:${res.captureTime!.minute.toString().padLeft(2, '0')}"
+                                              : "Unknown Time",
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black12,
+                                          blurRadius: 5,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.file(
+                                        res.file,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 30),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const RowDetailPage(
+                                      albumName: "New Detections",
+                                      rowName: "Current Scan",
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFEAA944),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 40,
+                                  vertical: 16,
+                                ),
+                              ),
+                              child: Text(
+                                "Detect Disease",
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                 ],
               ),
             ),
@@ -308,9 +414,8 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 30),
         ],
       ),
-      // --- NAVIGATION BAR ---
-      floatingActionButton: null, // Removed FAB
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+      // NAVIGATION BAR
       bottomNavigationBar: BottomAppBar(
         color: Colors.white,
         elevation: 10.0,
@@ -318,14 +423,12 @@ class _HomePageState extends State<HomePage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: <Widget>[
-            // Item 1: Home
             _buildBottomNavItem(
               icon: Icons.home_filled,
               label: "Home",
               isSelected: true,
               screenWidth: screenWidth,
             ),
-            // Item 2: Albums (Now navigates placeholder since albums aren't managed here)
             _buildBottomNavItem(
               icon: Icons.photo_album,
               label: "Albums",
