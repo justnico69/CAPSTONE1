@@ -1,30 +1,26 @@
 // lib/analysis_viewer_page.dart
 
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // FIX: Import the correct DetectionResult definition from config.dart
-import 'config.dart'; 
+import 'config.dart';
 
 // Define the dark brown color for reuse
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
 
 // This MUST be StatelessWidget
-class AnalysisViewerPage extends StatelessWidget { 
-  
+class AnalysisViewerPage extends StatelessWidget {
   final DetectionResult detectionResult;
   // 🔥 Fields for Dynamic Duration, Date, and Time
   final String durationText;
   final String dateCaptured;
   final String timeCaptured;
 
-
   const AnalysisViewerPage({
-    super.key, 
+    super.key,
     required this.detectionResult,
-    // 🔥 These fields are now populated dynamically in row_detail.dart
     required this.durationText,
     required this.dateCaptured,
     required this.timeCaptured,
@@ -35,29 +31,36 @@ class AnalysisViewerPage extends StatelessWidget {
     if (label == null) return Colors.grey;
     if (label == 'Unknown') return Colors.yellow.shade800;
     if (label.toLowerCase().contains('healthy')) return Colors.green.shade600;
-    
+
     // Default color for positive detections (e.g., diseased)
-    return confidence > 0.8 ? Colors.redAccent.shade700 : Colors.orange.shade700;
+    return confidence > 0.8
+        ? Colors.redAccent.shade700
+        : Colors.orange.shade700;
   }
 
   // Helper to determine the status text
   String _getStatusText(String? label) {
-    if (label == null) return "Analysis Pending (Data not saved or still loading)";
-    if (label == 'Unknown') return "Analysis Complete: Result below confidence threshold";
+    if (label == null) {
+      return "Analysis Pending (Data not saved or still loading)";
+    }
+    if (label == 'Unknown') {
+      return "Analysis Complete: Result below confidence threshold";
+    }
     return "Analysis Complete";
   }
 
   // Helper widget to build the detail rows
-  Widget _buildDetailRow(String label, String value, {bool isHighlighted = false}) {
+  Widget _buildDetailRow(String label, String value,
+      {bool isHighlighted = false}) {
     return Container(
-      padding: isHighlighted 
+      padding: isHighlighted
           ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
           : const EdgeInsets.symmetric(vertical: 8),
       decoration: isHighlighted
           ? BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              )
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            )
           : null,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -65,7 +68,7 @@ class AnalysisViewerPage extends StatelessWidget {
           Text(
             label,
             style: GoogleFonts.lato(
-              fontSize: 16, 
+              fontSize: 16,
               color: isHighlighted ? kDarkBrown : Colors.black87,
               fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
             ),
@@ -73,8 +76,8 @@ class AnalysisViewerPage extends StatelessWidget {
           Text(
             value,
             style: GoogleFonts.lato(
-              fontSize: 16, 
-              color: kDarkBrown, 
+              fontSize: 16,
+              color: kDarkBrown,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -89,13 +92,12 @@ class AnalysisViewerPage extends StatelessWidget {
     final String? prediction = detectionResult.label;
     final double confidence = detectionResult.confidence;
     final bool fileOk = imageFile.existsSync();
-    
+
     final Color resultColor = _getResultColor(prediction, confidence);
     final String statusText = _getStatusText(prediction);
-    
-    // We use a fixed height for the image display relative to the screen size
-    final double imageAreaHeight = MediaQuery.of(context).size.height * 0.45;
 
+    // Fixed height for image display relative to screen size
+    final double imageAreaHeight = MediaQuery.of(context).size.height * 0.45;
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -105,12 +107,11 @@ class AnalysisViewerPage extends StatelessWidget {
         title: Text(
           'Analysis Viewer',
           style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: kDarkBrown,
           ),
         ),
       ),
-      // 🔥 WRAP THE BODY CONTENT IN A SCROLL VIEW
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -131,12 +132,12 @@ class AnalysisViewerPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // --- Image Display Area (Fixed Height) ---
               Center(
                 child: Container(
-                  height: imageAreaHeight, // Fixed height for image area
-                  padding: const EdgeInsets.all(4), 
+                  height: imageAreaHeight,
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -145,24 +146,24 @@ class AnalysisViewerPage extends StatelessWidget {
                   child: Center(
                     child: fileOk
                         ? ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                imageFile,
-                                fit: BoxFit.contain, 
-                              ),
-                            )
-                        : Icon(
-                              Icons.image_not_supported,
-                              size: 80,
-                              color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              imageFile,
+                              fit: BoxFit.contain,
                             ),
+                          )
+                        : Icon(
+                            Icons.image_not_supported,
+                            size: 80,
+                            color: Colors.grey.shade300,
+                          ),
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
-              // --- Analysis Details (Now part of the scrollable content) ---
+
+              // --- Analysis Details ---
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                 decoration: BoxDecoration(
@@ -172,49 +173,36 @@ class AnalysisViewerPage extends StatelessWidget {
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min, // Use minimum space needed
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       "Analysis Result",
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        color: kDarkBrown,
                       ),
                     ),
                     const Divider(),
 
-                    Text(
-                      "CONFIDENCE: ${(confidence * 100).toStringAsFixed(1)}%",
-                      style: GoogleFonts.lato(
-                        color: Colors.black,
-                        fontSize: 12,
-                      ),
-                    ),
-                    LinearProgressIndicator(
-                      value: confidence,
-                      backgroundColor: Colors.grey.shade300,
-                      color: resultColor,
-                      minHeight: 8,
+                    // 🔥 Confidence (same format as other rows)
+                    _buildDetailRow(
+                      "Confidence",
+                      "${(confidence * 100).toStringAsFixed(1)}%",
                     ),
 
                     // Dynamic Duration of Analysis
                     _buildDetailRow("Duration of analysis", durationText),
-                    
-                    // Dynamic Date Captured (Highlighted Container)
+
+                    // Dynamic Date Captured
                     _buildDetailRow("Date Captured", dateCaptured),
-                    
+
                     // Dynamic Time
                     _buildDetailRow("Time", timeCaptured),
-                    
-                    // --- Placeholder for more analysis details if needed ---
-                    // Example of extra scrollable content:
-                    // _buildDetailRow("File Size", "${(imageFile.lengthSync() / 1024).toStringAsFixed(2)} KB"),
-                    // _buildDetailRow("Model Run", "YOLOv5-300"),
-                    // _buildDetailRow("Model Type", "TFLite Quantized"),
                   ],
                 ),
               ),
-              // Add a small spacer at the bottom of the scroll view
+
               const SizedBox(height: 20),
             ],
           ),
