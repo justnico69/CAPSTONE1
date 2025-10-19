@@ -1,16 +1,14 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:spotato/image_handler.dart'; // ✅ Added: Import the new handler
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 import 'analysis.dart';
 import 'analysis_viewer_page.dart';
 import 'config.dart';
+import 'database_helper.dart';
 import 'notification_service.dart';
 
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
@@ -33,7 +31,6 @@ class RowDetailPage extends StatefulWidget {
 }
 
 class _RowDetailPageState extends State<RowDetailPage> {
-  final ImagePicker _picker = ImagePicker();
   List<DetectionResult> _results = [];
   String _telloPackage = '';
   bool _modelLoaded = false;
@@ -44,12 +41,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
     _telloPackage = widget.telloPackage;
     NotificationService.init();
     _init();
-  }
-
-  @override
-  void dispose() {
-    globalInterpreter?.close();
-    super.dispose();
   }
 
   Future<void> _init() async {
@@ -71,7 +62,10 @@ class _RowDetailPageState extends State<RowDetailPage> {
   }
 
   Future<void> _loadModel() async {
-    if (_modelLoaded) return;
+    if (_modelLoaded || globalInterpreter != null) {
+      setState(() => _modelLoaded = true);
+      return;
+    }
     try {
       globalInterpreter = await Interpreter.fromAsset(kModelAssetPath);
       final inT = globalInterpreter!.getInputTensor(0);
@@ -83,40 +77,34 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  Future<Directory> _getCurrentScanDir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final path = Directory('${dir.path}/SPOTATO/New Detections/Current Scan');
-    if (!await path.exists()) {
-      await path.create(recursive: true); // ✅ Recreate folder
-    }
-    return path;
-  }
-
   Future<void> _loadImages() async {
-    final folder = await _getCurrentScanDir();
-    final files = folder.listSync().whereType<File>().toList();
-    final loaded = files
-        .map((f) => DetectionResult(file: f, captureTime: f.lastModifiedSync()))
-        .toList();
-
+    final loadedResults = await DatabaseHelper.instance.getAnalysesForAlbum(
+      'Current Scan',
+    );
     if (!mounted) return;
-    setState(() => _results = loaded);
-
-    for (var r in _results.where((x) => x.label == null)) {
-      _runAnalysis(r);
-    }
+    setState(() => _results = loadedResults);
   }
 
+  /// 🔹 Refactored: Now uses the ImageHandler to pick and compress.
   Future<void> _pickFromGallery() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-    final folder = await _getCurrentScanDir();
-    final dest = File('${folder.path}/${picked.name}');
-    await File(picked.path).copy(dest.path);
+    final sourceFile = await ImageHandler.pickFromGallery();
+    if (sourceFile == null) return;
+
+    final compressedFile = await ImageHandler.compressImage(sourceFile);
+    if (compressedFile == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to process image.')),
+        );
+      }
+      return;
+    }
+
     final newResult = DetectionResult(
-      file: dest,
-      captureTime: dest.lastModifiedSync(),
+      file: compressedFile,
+      captureTime: await compressedFile.lastModified(),
     );
+
     if (mounted) setState(() => _results.add(newResult));
     await _runAnalysis(newResult);
 
@@ -126,6 +114,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     );
   }
 
+  /// 🔹 Refactored: Logic is simpler, just manages the UI flow.
   Future<void> _launchTelloAndFetch() async {
     if (_telloPackage.isEmpty) {
       ScaffoldMessenger.of(
@@ -135,61 +124,57 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
 
     await InstalledApps.startApp(_telloPackage);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('📸 Open Tello, take pictures, then return here.'),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('📸 Open Tello, take pictures, then return here.'),
+        ),
+      );
+    }
 
     await Future.delayed(const Duration(seconds: 8));
     await _importFromTelloFolder();
   }
 
+  /// 🔹 Refactored: Now uses the ImageHandler to import and compress.
   Future<void> _importFromTelloFolder() async {
-    final telloDir = Directory('/storage/emulated/0/Pictures/TelloPhoto');
-    if (!await telloDir.exists()) return;
-
-    final now = DateTime.now();
-    final files = telloDir.listSync().whereType<File>().where((f) {
-      final mod = f.lastModifiedSync();
-      return now.difference(mod).inMinutes <= 10;
-    }).toList();
-
-    if (files.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No recent Tello photos found.')),
-      );
+    final sourceFiles = await ImageHandler.importFromTello();
+    if (sourceFiles.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No recent Tello photos found.')),
+        );
+      }
       return;
     }
 
-    final scanDir = await _getCurrentScanDir();
-    int analyzed = 0;
-
-    for (var f in files) {
-      final name = f.uri.pathSegments.last;
-      final dest = File('${scanDir.path}/$name');
-      if (!await dest.exists()) {
-        await f.copy(dest.path);
+    int analyzedCount = 0;
+    for (var file in sourceFiles) {
+      final compressedFile = await ImageHandler.compressImage(file);
+      if (compressedFile != null) {
         final newRes = DetectionResult(
-          file: dest,
-          captureTime: dest.lastModifiedSync(),
+          file: compressedFile,
+          captureTime: await compressedFile.lastModified(),
         );
         if (mounted) setState(() => _results.add(newRes));
         await _runAnalysis(newRes);
-        analyzed++;
+        analyzedCount++;
       }
     }
 
-    await NotificationService.show(
-      title: "SPOTATO Analysis Complete",
-      body: "$analyzed Tello image(s) analyzed successfully!",
-    );
+    if (analyzedCount > 0) {
+      await NotificationService.show(
+        title: "SPOTATO Analysis Complete",
+        body: "$analyzedCount Tello image(s) analyzed successfully!",
+      );
+    }
   }
 
   Future<void> _runAnalysis(DetectionResult res) async {
     if (!mounted) return;
     setState(() => res.isLoading = true);
     await runModelAnalysis(res);
+    await DatabaseHelper.instance.insertAnalysis(res, 'Current Scan');
     if (!mounted) return;
     setState(() => res.isLoading = false);
   }
@@ -201,148 +186,98 @@ class _RowDetailPageState extends State<RowDetailPage> {
       ).showSnackBar(const SnackBar(content: Text('No images to save.')));
       return;
     }
-
     final now = DateTime.now();
     final folderName =
         "Scan_${now.month}-${now.day}-${now.year}_${now.hour}-${now.minute}";
 
-   final confirm = await showDialog<bool>(
-  context: context,
-  builder: (_) => AlertDialog(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-    contentPadding: const EdgeInsets.all(20),
-    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
-
-    title: Text(
-      'Save Scan',
-      style: GoogleFonts.poppins(
-        color: Colors.brown,
-        fontWeight: FontWeight.w800,
-        fontSize: 18,
-      ),
-    ),
-    content: Text(
-      'You will be saving these images into a folder "$folderName".\n\nProceed?',
-      style: GoogleFonts.poppins(
-        color: Colors.black87,
-        fontSize: 14,
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context, false),
-        child: Text(
-          'Cancel',
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text(
+          'Save Scan',
           style: GoogleFonts.poppins(
             color: Colors.brown,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
           ),
         ),
+        content: Text(
+          'You will be saving these images into an album named "$folderName".\n\nProceed?',
+          style: GoogleFonts.poppins(color: Colors.black87, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(
+                color: Colors.brown,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kOrange,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Save',
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
-      ElevatedButton(
-        onPressed: () => Navigator.pop(context, true),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: kOrange,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        child: Text(
-          'Save',
-          style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    ],
-  ),
-);
-
-
+    );
     if (confirm != true) return;
 
     try {
-      final base = await getApplicationDocumentsDirectory();
-      final destDir = Directory(
-        '${base.path}/SPOTATO/New Detections/$folderName',
-      );
-      await destDir.create(recursive: true);
-
-      for (var res in _results) {
-        final imgName = res.file.uri.pathSegments.last;
-        final imgPath = '${destDir.path}/$imgName';
-        await res.file.copy(imgPath);
-
-        // 📝 Save metadata in a text file beside the image
-        final metaFile = File('$imgPath.txt');
-        await metaFile.writeAsString('''
-        Label: ${res.label ?? 'Unknown'}
-        Duration: ${res.analysisDuration?.inMilliseconds ?? 0}ms
-        Captured: ${res.captureTime?.toIso8601String() ?? ''}
-        ''');
+      await DatabaseHelper.instance.updateAlbumName('Current Scan', folderName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Scan saved to album "$folderName"')),
+        );
+        setState(() => _results.clear());
       }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('✅ Scan saved to "$folderName"')));
-
-      await _clearCurrentScan();
     } catch (e) {
       debugPrint('❌ Save error: $e');
     }
   }
 
+  /// 🔹 Changed: Now deletes the temporary physical files before clearing the DB.
   Future<void> _clearCurrentScan() async {
     try {
-      final dir = await _getCurrentScanDir();
-      if (await dir.exists()) {
-        await dir.delete(recursive: true);
+      // First, delete the compressed image files from the temporary folder.
+      for (var res in _results) {
+        if (await res.file.exists()) {
+          await res.file.delete();
+        }
       }
+
+      // Then, delete the records from the database.
+      await DatabaseHelper.instance.deleteAlbum('Current Scan');
+
       if (mounted) setState(() => _results.clear());
     } catch (e) {
-      debugPrint('⚠️ Failed to clear: $e');
+      debugPrint('⚠️ Failed to clear scan: $e');
     }
   }
 
   Future<bool> _onWillPop() async {
-    final bool isScanning = _results.any((r) => r.isLoading);
-    final bool hasUnsavedData = _results.isNotEmpty;
-
-    if (isScanning) {
-      final shouldExit = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Analysis in Progress'),
-          content: const Text(
-              'Some images are still being analyzed. Are you sure you want to exit?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Stay'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Exit', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      );
- return shouldExit ?? false;
-    } else if (hasUnsavedData) {
+    if (_results.isNotEmpty) {
       final shouldExit = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          contentPadding: const EdgeInsets.all(20),
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 40, vertical: 30), // screen margin
-
           title: Text(
             'Unsaved Work',
             style: GoogleFonts.poppins(
@@ -353,13 +288,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
           ),
           content: Text(
             'You have unsaved images. Would you like to save before exiting?',
-            style: GoogleFonts.poppins(
-              color: Colors.black87,
-              fontSize: 14,
-            ),
+            style: GoogleFonts.poppins(color: Colors.black87, fontSize: 14),
           ),
-          actionsPadding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -373,8 +303,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.of(context).pop(false);
                 await _saveCurrentScan();
+                if (mounted) Navigator.of(context).pop(false);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kOrange,
@@ -391,7 +321,10 @@ class _RowDetailPageState extends State<RowDetailPage> {
               ),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: () {
+                _clearCurrentScan();
+                Navigator.of(context).pop(true);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 shape: RoundedRectangleBorder(
@@ -411,21 +344,16 @@ class _RowDetailPageState extends State<RowDetailPage> {
       );
       return shouldExit ?? false;
     }
-
     return true;
   }
-
 
   Widget _buildImageTile(DetectionResult res) {
     final fileOk = res.file.existsSync();
     final color = (res.label == 'Healthy')
         ? Colors.green
-        : (res.label == 'Unknown')
-            ? Colors.yellow
-            : (res.label == null)
-                ? Colors.grey
-                : Colors.red;
-
+        : (res.label == null)
+        ? Colors.grey
+        : Colors.red;
     return GestureDetector(
       onTap: () {
         if (!fileOk) return;
@@ -439,7 +367,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
               dateCaptured:
                   "${res.captureTime?.month}/${res.captureTime?.day}/${res.captureTime?.year}",
               timeCaptured:
-                  "${res.captureTime?.hour}:${res.captureTime?.minute}",
+                  "${res.captureTime?.hour}:${res.captureTime?.minute.toString().padLeft(2, '0')}",
             ),
           ),
         );
@@ -474,14 +402,12 @@ class _RowDetailPageState extends State<RowDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    const kLightBackground = Colors.white;
-
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: const Color.fromARGB(243, 248, 248, 248),
         appBar: AppBar(
-          backgroundColor: kLightBackground,
+          backgroundColor: Colors.white,
           title: Text(
             widget.rowName,
             style: GoogleFonts.poppins(
@@ -497,26 +423,25 @@ class _RowDetailPageState extends State<RowDetailPage> {
               color: kDarkBrown,
               onPressed: () async {
                 for (var r in _results) {
-                  r.label = null;
-                  r.isLoading = false;
-                }
-                setState(() {});
-                for (var r in _results) {
                   await _runAnalysis(r);
                 }
               },
             ),
             IconButton(
               icon: const Icon(Icons.folder_open),
-              tooltip: 'Save as Folder',
+              tooltip: 'Save as Album',
               color: kDarkBrown,
               onPressed: _saveCurrentScan,
             ),
           ],
         ),
         body: GridView.builder(
-          padding:
-              const EdgeInsets.only(left: 8, right: 8, bottom: 100, top: 10),
+          padding: const EdgeInsets.only(
+            left: 8,
+            right: 8,
+            bottom: 100,
+            top: 10,
+          ),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
             crossAxisSpacing: 6,
@@ -531,18 +456,21 @@ class _RowDetailPageState extends State<RowDetailPage> {
             FloatingActionButton.extended(
               onPressed: _launchTelloAndFetch,
               backgroundColor: kDarkBrown,
-              icon:
-                  const Icon(Icons.airplanemode_active, color: Colors.white),
-              label: const Text('Use Tello',
-                  style: TextStyle(color: Colors.white)),
+              icon: const Icon(Icons.airplanemode_active, color: Colors.white),
+              label: const Text(
+                'Use Tello',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
             const SizedBox(height: 10),
             FloatingActionButton.extended(
               onPressed: _pickFromGallery,
               backgroundColor: kOrange,
               icon: const Icon(Icons.photo_library, color: Colors.white),
-              label: const Text('Add Image',
-                  style: TextStyle(color: Colors.white)),
+              label: const Text(
+                'Add Image',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
