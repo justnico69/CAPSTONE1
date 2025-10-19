@@ -206,26 +206,61 @@ class _RowDetailPageState extends State<RowDetailPage> {
     final folderName =
         "Scan_${now.month}-${now.day}-${now.year}_${now.hour}-${now.minute}";
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Save Scan'),
-        content: Text(
-          'You will be saving these images into a folder "$folderName".\n\nProceed?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: kOrange),
-            child: const Text('Save'),
-          ),
-        ],
+   final confirm = await showDialog<bool>(
+  context: context,
+  builder: (_) => AlertDialog(
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    contentPadding: const EdgeInsets.all(20),
+    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+
+    title: Text(
+      'Save Scan',
+      style: GoogleFonts.poppins(
+        color: Colors.brown,
+        fontWeight: FontWeight.w800,
+        fontSize: 18,
       ),
-    );
+    ),
+    content: Text(
+      'You will be saving these images into a folder "$folderName".\n\nProceed?',
+      style: GoogleFonts.poppins(
+        color: Colors.black87,
+        fontSize: 14,
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context, false),
+        child: Text(
+          'Cancel',
+          style: GoogleFonts.poppins(
+            color: Colors.brown,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+      ElevatedButton(
+        onPressed: () => Navigator.pop(context, true),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: kOrange,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          'Save',
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    ],
+  ),
+);
+
 
     if (confirm != true) return;
 
@@ -244,10 +279,10 @@ class _RowDetailPageState extends State<RowDetailPage> {
         // 📝 Save metadata in a text file beside the image
         final metaFile = File('$imgPath.txt');
         await metaFile.writeAsString('''
-Label: ${res.label ?? 'Unknown'}
-Duration: ${res.analysisDuration?.inMilliseconds ?? 0}ms
-Captured: ${res.captureTime?.toIso8601String() ?? ''}
-''');
+        Label: ${res.label ?? 'Unknown'}
+        Duration: ${res.analysisDuration?.inMilliseconds ?? 0}ms
+        Captured: ${res.captureTime?.toIso8601String() ?? ''}
+        ''');
       }
 
       ScaffoldMessenger.of(
@@ -264,7 +299,7 @@ Captured: ${res.captureTime?.toIso8601String() ?? ''}
     try {
       final dir = await _getCurrentScanDir();
       if (await dir.exists()) {
-        await dir.delete(recursive: true); // ✅ remove the folder entirely
+        await dir.delete(recursive: true);
       }
       if (mounted) setState(() => _results.clear());
     } catch (e) {
@@ -272,21 +307,124 @@ Captured: ${res.captureTime?.toIso8601String() ?? ''}
     }
   }
 
-  @override
-  void deactivate() {
-    _clearCurrentScan();
-    super.deactivate();
+  Future<bool> _onWillPop() async {
+    final bool isScanning = _results.any((r) => r.isLoading);
+    final bool hasUnsavedData = _results.isNotEmpty;
+
+    if (isScanning) {
+      final shouldExit = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Analysis in Progress'),
+          content: const Text(
+              'Some images are still being analyzed. Are you sure you want to exit?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Stay'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Exit', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+ return shouldExit ?? false;
+    } else if (hasUnsavedData) {
+      final shouldExit = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.all(20),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 40, vertical: 30), // screen margin
+
+          title: Text(
+            'Unsaved Work',
+            style: GoogleFonts.poppins(
+              color: Colors.brown,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+            ),
+          ),
+          content: Text(
+            'You have unsaved images. Would you like to save before exiting?',
+            style: GoogleFonts.poppins(
+              color: Colors.black87,
+              fontSize: 14,
+            ),
+          ),
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(
+                  color: Colors.brown,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop(false);
+                await _saveCurrentScan();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kOrange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Save First',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Exit Anyway',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return shouldExit ?? false;
+    }
+
+    return true;
   }
+
 
   Widget _buildImageTile(DetectionResult res) {
     final fileOk = res.file.existsSync();
     final color = (res.label == 'Healthy')
         ? Colors.green
         : (res.label == 'Unknown')
-        ? Colors.yellow
-        : (res.label == null)
-        ? Colors.grey
-        : Colors.red;
+            ? Colors.yellow
+            : (res.label == null)
+                ? Colors.grey
+                : Colors.red;
 
     return GestureDetector(
       onTap: () {
@@ -338,69 +476,76 @@ Captured: ${res.captureTime?.toIso8601String() ?? ''}
   Widget build(BuildContext context) {
     const kLightBackground = Colors.white;
 
-    return Scaffold(
-      backgroundColor: const Color.fromARGB(243, 248, 248, 248),
-      appBar: AppBar(
-        backgroundColor: kLightBackground,
-        title: Text(
-          widget.rowName,
-          style: GoogleFonts.poppins(
-            color: kDarkBrown,
-            fontWeight: FontWeight.bold,
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: const Color.fromARGB(243, 248, 248, 248),
+        appBar: AppBar(
+          backgroundColor: kLightBackground,
+          title: Text(
+            widget.rowName,
+            style: GoogleFonts.poppins(
+              color: kDarkBrown,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          iconTheme: const IconThemeData(color: kDarkBrown),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Re-run analysis',
+              color: kDarkBrown,
+              onPressed: () async {
+                for (var r in _results) {
+                  r.label = null;
+                  r.isLoading = false;
+                }
+                setState(() {});
+                for (var r in _results) {
+                  await _runAnalysis(r);
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.folder_open),
+              tooltip: 'Save as Folder',
+              color: kDarkBrown,
+              onPressed: _saveCurrentScan,
+            ),
+          ],
         ),
-        iconTheme: const IconThemeData(color: kDarkBrown),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Re-run analysis',
-            color: kDarkBrown,
-            onPressed: () async {
-              for (var r in _results) {
-                r.label = null;
-                r.isLoading = false;
-              }
-              setState(() {});
-              for (var r in _results) {
-                await _runAnalysis(r);
-              }
-            },
+        body: GridView.builder(
+          padding:
+              const EdgeInsets.only(left: 8, right: 8, bottom: 100, top: 10),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 6,
+            mainAxisSpacing: 6,
           ),
-          IconButton(
-            icon: const Icon(Icons.folder_open),
-            tooltip: 'Save as Folder',
-            color: kDarkBrown,
-            onPressed: _saveCurrentScan,
-          ),
-        ],
-      ),
-      body: GridView.builder(
-        padding: const EdgeInsets.only(left: 8, right: 8, bottom: 100, top: 10),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 6,
-          mainAxisSpacing: 6,
+          itemCount: _results.length,
+          itemBuilder: (_, i) => _buildImageTile(_results[i]),
         ),
-        itemCount: _results.length,
-        itemBuilder: (_, i) => _buildImageTile(_results[i]),
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.extended(
-            onPressed: _launchTelloAndFetch,
-            backgroundColor: kDarkBrown,
-            icon: const Icon(Icons.airplanemode_active),
-            label: const Text('Use Tello'),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton.extended(
-            onPressed: _pickFromGallery,
-            backgroundColor: kOrange,
-            icon: const Icon(Icons.photo_library),
-            label: const Text('Add Image'),
-          ),
-        ],
+        floatingActionButton: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton.extended(
+              onPressed: _launchTelloAndFetch,
+              backgroundColor: kDarkBrown,
+              icon:
+                  const Icon(Icons.airplanemode_active, color: Colors.white),
+              label: const Text('Use Tello',
+                  style: TextStyle(color: Colors.white)),
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton.extended(
+              onPressed: _pickFromGallery,
+              backgroundColor: kOrange,
+              icon: const Icon(Icons.photo_library, color: Colors.white),
+              label: const Text('Add Image',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }
