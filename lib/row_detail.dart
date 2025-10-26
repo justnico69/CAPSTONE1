@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
-import 'package:spotato/image_handler.dart'; // ✅ Added: Import the new handler
+import 'package:permission_handler/permission_handler.dart';
+import 'package:spotato/image_handler.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 import 'analysis.dart';
@@ -34,31 +35,69 @@ class _RowDetailPageState extends State<RowDetailPage> {
   List<DetectionResult> _results = [];
   String _telloPackage = '';
   bool _modelLoaded = false;
+  bool _isFindingTelloApp = false;
+
+  // 🔹 ADDED THIS: This "remembers" when the last import happened.
+  late DateTime _lastImportTimestamp;
 
   @override
   void initState() {
     super.initState();
     _telloPackage = widget.telloPackage;
     NotificationService.init();
+
+    // 🔹 ADDED THIS: Sets the initial timestamp to now.
+    // Any files created *before* this page was opened will be ignored.
+    _lastImportTimestamp = DateTime.now();
+
     _init();
   }
 
+  /// This function now clears any leftover images from a
+  /// previous session, ensuring you always start with a clean page.
   Future<void> _init() async {
     await _loadModel();
+
+    // 1. Load any leftover results from the DB into the _results list
     await _loadImages();
-    if (_telloPackage.isEmpty) _checkTelloApp();
+
+    // 2. If we found any, clear them (files and DB) before the user sees them.
+    if (_results.isNotEmpty) {
+      debugPrint(
+        "Clearing ${_results.length} leftover images from previous session.",
+      );
+      await _clearCurrentScan();
+    }
   }
 
   Future<void> _checkTelloApp() async {
+    if (_isFindingTelloApp) return;
+
+    setState(() => _isFindingTelloApp = true);
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Finding Tello app...')));
+    }
+
     try {
       List<AppInfo> apps = await InstalledApps.getInstalledApps(true, true);
       for (var app in apps) {
         if (app.packageName == "com.ryzerobotics.tello") {
-          if (mounted) setState(() => _telloPackage = app.packageName);
+          if (mounted) {
+            setState(() => _telloPackage = app.packageName);
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('✅ Tello app found!')));
+          }
           break;
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // Handle error
+    } finally {
+      if (mounted) setState(() => _isFindingTelloApp = false);
+    }
   }
 
   Future<void> _loadModel() async {
@@ -85,7 +124,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
     setState(() => _results = loadedResults);
   }
 
-  /// 🔹 Refactored: Now uses the ImageHandler to pick and compress.
   Future<void> _pickFromGallery() async {
     final sourceFile = await ImageHandler.pickFromGallery();
     if (sourceFile == null) return;
@@ -114,35 +152,83 @@ class _RowDetailPageState extends State<RowDetailPage> {
     );
   }
 
-  /// 🔹 Refactored: Logic is simpler, just manages the UI flow.
   Future<void> _launchTelloAndFetch() async {
-    if (_telloPackage.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Tello app not found.')));
+    if (_isFindingTelloApp) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait, still finding Tello app...'),
+        ),
+      );
       return;
     }
 
-    await InstalledApps.startApp(_telloPackage);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('📸 Open Tello, take pictures, then return here.'),
-        ),
-      );
+    if (_telloPackage.isEmpty) {
+      await _checkTelloApp();
+      if (_telloPackage.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Tello app not found.')));
+        return;
+      }
     }
 
-    await Future.delayed(const Duration(seconds: 8));
-    await _importFromTelloFolder();
+    var status = await Permission.manageExternalStorage.status;
+    if (status.isDenied) {
+      status = await Permission.manageExternalStorage.request();
+    }
+
+    if (status.isPermanentlyDenied) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'All Files Access is required. Please enable it in app settings.',
+            ),
+          ),
+        );
+      }
+      await openAppSettings();
+      return;
+    }
+
+    if (status.isGranted) {
+      await InstalledApps.startApp(_telloPackage);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📸 Open Tello, take pictures, then return here.'),
+          ),
+        );
+      }
+
+      await Future.delayed(const Duration(seconds: 8));
+
+      // 🔹 UPDATED: We now "save" the time *before* we check.
+      // This ensures any files created *while* importing are picked up next time.
+      final importCheckTime = DateTime.now();
+      await _importFromTelloFolder();
+
+      // 🔹 UPDATED: We update our "memory" to the time the check started.
+      _lastImportTimestamp = importCheckTime;
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Storage permission was not granted.')),
+        );
+      }
+    }
   }
 
-  /// 🔹 Refactored: Now uses the ImageHandler to import and compress.
   Future<void> _importFromTelloFolder() async {
-    final sourceFiles = await ImageHandler.importFromTello();
+    // 🔹 UPDATED: Pass the "memory" timestamp to the image handler.
+    final sourceFiles = await ImageHandler.importFromTello(
+      _lastImportTimestamp,
+    );
+
     if (sourceFiles.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No recent Tello photos found.')),
+          const SnackBar(content: Text('No *new* Tello photos found.')),
         );
       }
       return;
@@ -165,7 +251,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     if (analyzedCount > 0) {
       await NotificationService.show(
         title: "SPOTATO Analysis Complete",
-        body: "$analyzedCount Tello image(s) analyzed successfully!",
+        body: "$analyzedCount new Tello image(s) analyzed!",
       );
     }
   }
@@ -251,7 +337,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  /// 🔹 Changed: Now deletes the temporary physical files before clearing the DB.
+  /// This function now clears all images (files and DB) for the "Current Scan".
   Future<void> _clearCurrentScan() async {
     try {
       // First, delete the compressed image files from the temporary folder.

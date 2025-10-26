@@ -64,8 +64,6 @@ class DatabaseHelper {
     ''');
   }
 
-  // --- CRUD (Create, Read, Update, Delete) Operations ---
-
   /// 1. CREATE: Inserts a new analysis record into the database.
   Future<int> insertAnalysis(DetectionResult result, String albumName) async {
     Database db = await instance.database;

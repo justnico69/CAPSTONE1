@@ -54,7 +54,7 @@ class TutorialPage extends StatelessWidget {
               stepNumber: "2",
               title: "Add or Capture Images",
               description:
-                  "You can either use the Tello drone to capture images or add them manually from your gallery. The AI will analyze each image and determine if the leaf is healthy or has blight.",
+                  "You can either use the Tello drone (Connect to Tello's Wifi Hotspot first) to capture images or add them manually from your gallery. The AI will analyze each image and determine if the leaf is healthy or has blight.",
             ),
 
             // Step 3

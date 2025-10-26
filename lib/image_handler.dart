@@ -23,20 +23,58 @@ class ImageHandler {
     return null;
   }
 
-  /// Finds and returns a list of recent image files from the Tello drone's directory.
-  static Future<List<File>> importFromTello() async {
+  /// 🔹 UPDATED: This function now only finds files modified *after* the
+  /// [lastImportTime] to avoid importing duplicates from previous sessions.
+  static Future<List<File>> importFromTello(DateTime lastImportTime) async {
     try {
-      final telloDir = Directory('/storage/emulated/0/Pictures/TelloPhoto');
-      if (!await telloDir.exists()) return [];
+      final telloDir = Directory('/storage/emulated/0/Pictures/TelloPhoto/');
 
-      final now = DateTime.now();
-      return telloDir.listSync().whereType<File>().where((f) {
+      if (!await telloDir.exists()) {
+        debugPrint("--- DEBUG ---");
+        debugPrint("❌ Directory does not exist: ${telloDir.path}");
+        debugPrint("---------------");
+        return [];
+      }
+
+      debugPrint("--- DEBUG ---");
+      debugPrint("✅ Directory exists. Listing all files...");
+
+      // Ensure we only get files, not directories or other links
+      final allFiles = telloDir.listSync().whereType<File>().toList();
+      if (allFiles.isEmpty) {
+        debugPrint("⚠️ Directory is empty. No files found.");
+        debugPrint("---------------");
+        return [];
+      }
+
+      debugPrint("Filtering for new files created after: $lastImportTime");
+
+      final newFiles = allFiles.where((f) {
         final mod = f.lastModifiedSync();
-        // Return files modified in the last 10 minutes.
-        return now.difference(mod).inMinutes <= 10;
+
+        // 🔹 THIS IS THE NEW LOGIC 🔹
+        // It's only "new" if its modification time is *after* the last import.
+        final isNew = mod.isAfter(lastImportTime);
+
+        debugPrint(
+          "  - Checking ${p.basename(f.path)} (Modified: $mod). Is new? $isNew",
+        );
+
+        return isNew;
       }).toList();
+
+      debugPrint("${newFiles.length} new file(s) found.");
+      debugPrint("---------------");
+      return newFiles;
     } catch (e) {
-      debugPrint("Error reading Tello folder: $e");
+      debugPrint("--- DEBUG ---");
+      debugPrint("❌ CRITICAL ERROR reading Tello folder: $e");
+      if (e is FileSystemException && e.message.contains('Permission denied')) {
+        debugPrint(
+          "👉 This is a PERMISSION PROBLEM. Did you grant storage access?",
+        );
+      }
+      debugPrint("---------------");
       return [];
     }
   }
@@ -46,18 +84,27 @@ class ImageHandler {
   static Future<File?> compressImage(File sourceFile) async {
     try {
       final tempDir = await getApplicationDocumentsDirectory();
-      final sourceFileName = p.basename(sourceFile.path);
+
+      // Get the source filename WITHOUT its extension (e.g., "1761475959045")
+      final sourceFileName = p.basenameWithoutExtension(sourceFile.path);
+      // Create a new target filename that ALWAYS ends in .jpg
+      final targetFileName =
+          '${DateTime.now().millisecondsSinceEpoch}_$sourceFileName.jpg';
+
       // Create a unique target path to avoid file name collisions.
       final targetPath = p.join(
         tempDir.path,
         'SPOTATO',
         'Temp',
-        '${DateTime.now().millisecondsSinceEpoch}_$sourceFileName',
+        targetFileName, // Use the new .jpg filename
       );
+
+      // Ensures the target directory exists before trying to write to it.
+      await Directory(p.dirname(targetPath)).create(recursive: true);
 
       final result = await FlutterImageCompress.compressAndGetFile(
         sourceFile.absolute.path,
-        targetPath,
+        targetPath, // This path now correctly ends in .jpg
         quality: 85, // Good balance of quality and size
         minWidth: 1080, // Resize larger images
         minHeight: 1080,
