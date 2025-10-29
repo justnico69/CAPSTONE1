@@ -1,21 +1,19 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:path_provider/path_provider.dart';
 
 import 'analysis_viewer_page.dart';
 import 'config.dart';
+import 'database_helper.dart';
 
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
 const Color kOrange = Color(0xFFEAA944);
 
 class AlbumDetail extends StatefulWidget {
   final String albumName;
-  final String date;
 
-  const AlbumDetail({Key? key, required this.albumName, required this.date})
-    : super(key: key);
+  // 🔹 Change: The 'date' parameter is no longer needed,
+  // as all data is fetched using the albumName.
+  const AlbumDetail({Key? key, required this.albumName}) : super(key: key);
 
   @override
   State<AlbumDetail> createState() => _AlbumDetailState();
@@ -23,64 +21,30 @@ class AlbumDetail extends StatefulWidget {
 
 class _AlbumDetailState extends State<AlbumDetail> {
   List<DetectionResult> _results = [];
+  bool _isLoading = true; // Added for better user experience
 
   @override
   void initState() {
     super.initState();
-    _loadSavedImages();
+    _loadAlbumDetails();
   }
 
-  /// 🔹 Load all images and their metadata (.txt files)
-  Future<void> _loadSavedImages() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final folder = Directory(
-      '${dir.path}/SPOTATO/New Detections/${widget.albumName}',
+  /// 🔹 Change: This function now loads all analysis results for this album
+  /// from the database with a single, efficient query.
+  Future<void> _loadAlbumDetails() async {
+    // Set loading state
+    if (mounted) setState(() => _isLoading = true);
+
+    final resultsFromDb = await DatabaseHelper.instance.getAnalysesForAlbum(
+      widget.albumName,
     );
-    if (!await folder.exists()) return;
 
-    final imageFiles = folder
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.jpg') || f.path.endsWith('.png'))
-        .toList();
-
-    List<DetectionResult> loaded = [];
-
-    for (var img in imageFiles) {
-      final metaFile = File('${img.path}.txt');
-      String label = 'Unknown';
-      Duration? duration;
-      DateTime? captured;
-
-      if (await metaFile.exists()) {
-        final lines = await metaFile.readAsLines();
-        for (var line in lines) {
-          if (line.startsWith('Label:')) {
-            label = line.replaceFirst('Label:', '').trim();
-          } else if (line.startsWith('Duration:')) {
-            final val = line
-                .replaceFirst('Duration:', '')
-                .replaceAll('ms', '')
-                .trim();
-            duration = Duration(milliseconds: int.tryParse(val) ?? 0);
-          } else if (line.startsWith('Captured:')) {
-            final val = line.replaceFirst('Captured:', '').trim();
-            if (val.isNotEmpty) captured = DateTime.tryParse(val);
-          }
-        }
-      }
-
-      loaded.add(
-        DetectionResult(
-          file: img,
-          label: label,
-          analysisDuration: duration,
-          captureTime: captured ?? img.lastModifiedSync(),
-        ),
-      );
+    if (mounted) {
+      setState(() {
+        _results = resultsFromDb;
+        _isLoading = false; // Done loading
+      });
     }
-
-    setState(() => _results = loaded);
   }
 
   Color _getLabelColor(String? label) {
@@ -123,7 +87,16 @@ class _AlbumDetailState extends State<AlbumDetail> {
         children: [
           exists
               ? Image.file(res.file, fit: BoxFit.cover)
-              : Container(color: Colors.black12),
+              : Container(
+                  color: Colors.black12,
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      color: Colors.grey,
+                      size: 40,
+                    ),
+                  ),
+                ),
           Positioned(
             bottom: 6,
             left: 6,
@@ -166,10 +139,12 @@ class _AlbumDetailState extends State<AlbumDetail> {
         ),
         iconTheme: const IconThemeData(color: kDarkBrown),
       ),
-      body: _results.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _results.isEmpty
           ? Center(
               child: Text(
-                "No images found in this folder.",
+                "No images found in this album.",
                 style: GoogleFonts.poppins(
                   color: Colors.grey[600],
                   fontSize: 16,
