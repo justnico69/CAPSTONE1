@@ -14,7 +14,7 @@ class SPOTATOApp extends StatelessWidget {
     return MaterialApp(
       title: 'SPOTATO',
       theme: ThemeData(primarySwatch: Colors.green, useMaterial3: true),
-      home: const LandingPage(), // This is the starting point of your app
+      home: const LandingPage(), // This is the starting point of the app
     );
   }
 }
