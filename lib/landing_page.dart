@@ -1,7 +1,11 @@
-import 'dart:async'; // Required for the Timer
+import 'dart:async'; // Required for Future.delayed
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- ADDED
+
 import 'get_started.dart';
+import 'home_page.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -14,27 +18,56 @@ class _LandingPageState extends State<LandingPage> {
   @override
   void initState() {
     super.initState();
-    // Start a timer that will run after 5 seconds
-    Timer(const Duration(seconds: 5), () {
-      // Navigate using a custom PageRouteBuilder for a fade transition
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const GetStartedPage(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            // Use FadeTransition for the animation
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 800), // Adjust fade speed
-        ),
-      );
-    });
+    // Replaced the old Timer with this new check
+    _checkIfFirstTime();
+  }
+
+  /// Checks SharedPreferences to see if the user has already seen the
+  /// GetStartedPage.
+  Future<void> _checkIfFirstTime() async {
+    // 1. Get the SharedPreferences instance
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    // 2. Read the flag. If it doesn't exist, '?? false' makes it false.
+    final bool hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
+
+    // 3. We still want the splash screen to show for a bit.
+    //    Let's wait 3 seconds before navigating.
+    await Future.delayed(const Duration(seconds: 3));
+
+    // 4. Safety check: make sure the widget is still on screen
+    if (!mounted) return;
+
+    // 5. Navigate to the correct page
+    if (hasSeenOnboarding) {
+      // Not the first time: Go directly to HomePage
+      _navigateTo(const HomePage());
+    } else {
+      // This IS the first time: Go to GetStartedPage
+      _navigateTo(const GetStartedPage());
+    }
+  }
+
+  /// Reusable navigation function to preserve your fade transition
+  void _navigateTo(Widget page) {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        // The 'page' argument determines the destination
+        pageBuilder: (context, animation, secondaryAnimation) => page,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // Use FadeTransition for the animation
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(
+          milliseconds: 800,
+        ), // Your original speed
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // This entire build method is unchanged.
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       body: Stack(
@@ -48,10 +81,7 @@ class _LandingPageState extends State<LandingPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Image.asset(
-                      'assets/images/spotato_logo.png',
-                      height: 120,
-                    ),
+                    Image.asset('assets/images/spotato_logo.png', height: 120),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
