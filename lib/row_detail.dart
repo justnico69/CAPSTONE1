@@ -3,12 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:intl/intl.dart';
-// 🔹 --- ADD THIS IMPORT --- 🔹
 import 'package:permission_handler/permission_handler.dart';
 import 'package:spotato/image_handler.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
-
-// 🔹 ------------------------- 🔹
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 import 'analysis.dart';
 import 'analysis_viewer_page.dart';
@@ -101,7 +99,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
   }
 
   Future<void> _pickFromGallery() async {
-    // We can use Permission.photos for the gallery, that is fine.
     var status = await Permission.photos.status;
     if (status.isDenied) {
       status = await Permission.photos.request();
@@ -147,8 +144,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  /// 🔹 --- NEW FUNCTION (Replaces _launchTelloAndFetch) --- 🔹
-  /// Safely launches the Tello app and instructs the user.
   Future<void> _launchTelloApp() async {
     if (_telloPackage.isEmpty) {
       if (mounted) {
@@ -182,11 +177,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  /// 🔹 --- UPDATED FUNCTION --- 🔹
-  /// Imports and compresses Tello photos after checking for the
-  /// CORRECT "All Files Access" permission.
   Future<void> _importFromTelloFolder() async {
-    // 1. THIS IS THE CORRECT PERMISSION CHECK
     var status = await Permission.manageExternalStorage.status;
     if (status.isDenied) {
       if (mounted) {
@@ -198,7 +189,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
           ),
         );
       }
-      // 2. This will open the phone's settings page for the user to grant.
       status = await Permission.manageExternalStorage.request();
     }
 
@@ -211,15 +201,12 @@ class _RowDetailPageState extends State<RowDetailPage> {
             ),
           ),
         );
-        await openAppSettings(); // Opens the app's settings
+        await openAppSettings();
       }
       return;
     }
-    // 🔹 ----------------------------------------------- 🔹
 
-    // 3. Only proceed if the permission is granted
     if (status.isGranted) {
-      // 4. This is the correct timer-less logic from before
       final importCheckTime = DateTime.now();
 
       final sourceFiles = await ImageHandler.importFromTello(
@@ -258,7 +245,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
         );
       }
     } else {
-      // If permissions are still denied after asking
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -288,9 +274,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
       return;
     }
     final now = DateTime.now();
-    final String dateStr = DateFormat(
-      'MMM-d-y',
-    ).format(now); // <-- CHANGED THIS LINE
+    final String dateStr = DateFormat('MMM-d-y').format(now);
     final String timeStr = DateFormat('h-mm_a').format(now);
 
     final folderName = "Scan_${dateStr}_$timeStr";
@@ -356,7 +340,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  /// Changed: Now deletes the temporary physical files before clearing the DB.
   Future<void> _clearCurrentScan({bool updateState = true}) async {
     try {
       final resultsToClear = List<DetectionResult>.from(_results);
@@ -377,7 +360,9 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
+  // --- Handles back button press ---
   Future<bool> _onWillPop() async {
+    // Original logic for unsaved work
     if (_results.isNotEmpty) {
       final shouldExit = await showDialog<bool>(
         context: context,
@@ -454,16 +439,17 @@ class _RowDetailPageState extends State<RowDetailPage> {
     return true;
   }
 
+  // --- Builds the image tile with the new label style ---
   Widget _buildImageTile(DetectionResult res) {
     final fileOk = res.file.existsSync();
     final color = (res.label == 'Healthy')
-        ? Colors.green
+        ? Colors.green.shade800 // Darker green for better contrast
         : (res.label == null)
-        ? Colors.grey
-        : Colors.red;
+            ? Colors.grey.shade700 // Darker grey
+            : Colors.red.shade800; // Darker red
 
     return GestureDetector(
-      onTap: () {
+      onTap: () { // --- Original onTap functionality ---
         if (!fileOk) return;
         Navigator.push(
           context,
@@ -480,30 +466,41 @@ class _RowDetailPageState extends State<RowDetailPage> {
           ),
         );
       },
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          fileOk
-              ? Image.file(res.file, fit: BoxFit.cover)
-              : Container(color: Colors.black),
-          if (res.label != null)
-            Positioned(
-              top: 6,
-              right: 6,
-              child: CircleAvatar(
-                radius: 12,
-                backgroundColor: color,
-                child: Text(
-                  res.label![0],
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4.0),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // --- The Image ---
+            fileOk
+                ? Image.file(res.file, fit: BoxFit.cover)
+                : Container(color: Colors.black),
+
+            // --- Full Text Label at the Bottom ---
+            if (res.label != null)
+              Positioned(
+                bottom: 0, // Position at the bottom
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  color: color.withOpacity(0.8), // Semi-transparent colored background
+                  child: Text(
+                    res.label!, // Display the full label
+                    textAlign: TextAlign.center,
+                    maxLines: 1, // Ensure it stays on one line
+                    overflow: TextOverflow.ellipsis, // Add '...' if it's too long
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 10, // Smaller font size for full text
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -514,6 +511,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: const Color.fromARGB(243, 248, 248, 248),
+        // --- Original AppBar ---
         appBar: AppBar(
           backgroundColor: Colors.white,
           title: Text(
@@ -541,13 +539,14 @@ class _RowDetailPageState extends State<RowDetailPage> {
               color: kDarkBrown,
               onPressed: _saveCurrentScan,
             ),
+            // --- Delete button is removed ---
           ],
         ),
         body: GridView.builder(
           padding: const EdgeInsets.only(
             left: 8,
             right: 8,
-            bottom: 200, // Increased padding for 3 buttons
+            bottom: 200,
             top: 10,
           ),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -559,53 +558,41 @@ class _RowDetailPageState extends State<RowDetailPage> {
           itemBuilder: (_, i) => _buildImageTile(_results[i]),
         ),
 
-        // --- 🔹 UPDATED FLOATING ACTION BUTTONS 🔹 ---
-        floatingActionButton: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment:
-              CrossAxisAlignment.end, // Aligns buttons to the right
-          children: [
-            // BUTTON 1: LAUNCH TELLO
-            FloatingActionButton.extended(
-              onPressed: _launchTelloApp, // Calls our NEW, simple function
-              backgroundColor: kDarkBrown,
-              icon: const Icon(Icons.airplanemode_active, color: Colors.white),
-              label: const Text(
-                '1. Launch Tello',
-                style: TextStyle(color: Colors.white),
+        // --- Floating Action Buttons ---
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: SpeedDial(
+            icon: Icons.add,
+            activeIcon: Icons.close,
+            backgroundColor: kOrange,
+            foregroundColor: Colors.white,
+            visible: true, // --- Always visible ---
+            curve: Curves.bounceIn,
+            heroTag: 'fab-main',
+            children: [
+              SpeedDialChild(
+                child: const Icon(Icons.airplanemode_active, color: Colors.white),
+                backgroundColor: kDarkBrown,
+                label: 'Launch Tello',
+                labelStyle: GoogleFonts.poppins(),
+                onTap: _launchTelloApp,
               ),
-              heroTag: 'fab-tello-launch',
-            ),
-            const SizedBox(height: 10),
-
-            // BUTTON 2: IMPORT TELLO
-            FloatingActionButton.extended(
-              onPressed:
-                  _importFromTelloFolder, // Calls your EXISTING import function
-              backgroundColor: kDarkBrown.withOpacity(
-                0.85,
-              ), // Slightly different color
-              icon: const Icon(Icons.download, color: Colors.white),
-              label: const Text(
-                '2. Import Tello Photos',
-                style: TextStyle(color: Colors.white),
+              SpeedDialChild(
+                child: const Icon(Icons.download, color: Colors.white),
+                backgroundColor: kDarkBrown.withOpacity(0.85),
+                label: 'Import Tello Photos',
+                labelStyle: GoogleFonts.poppins(),
+                onTap: _importFromTelloFolder,
               ),
-              heroTag: 'fab-tello-import',
-            ),
-            const SizedBox(height: 10),
-
-            // BUTTON 3: ADD FROM GALLERY
-            FloatingActionButton.extended(
-              onPressed: _pickFromGallery,
-              backgroundColor: kOrange,
-              icon: const Icon(Icons.photo_library, color: Colors.white),
-              label: const Text(
-                'Add from Gallery',
-                style: TextStyle(color: Colors.white),
+              SpeedDialChild(
+                child: const Icon(Icons.photo_library, color: Colors.white),
+                backgroundColor: kOrange,
+                label: 'Add from Gallery',
+                labelStyle: GoogleFonts.poppins(),
+                onTap: _pickFromGallery,
               ),
-              heroTag: 'fab-gallery',
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

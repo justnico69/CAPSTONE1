@@ -3,12 +3,30 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Import for SystemUiOverlayStyle
 import 'package:google_fonts/google_fonts.dart';
 
 import 'config.dart';
 
 // Define the dark brown color for reuse
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
+
+/// Helper class to hold styling for the warning card
+class _WarningStyle {
+  final Color boxColor;
+  final Color titleColor;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  _WarningStyle({
+    required this.boxColor,
+    required this.titleColor,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+}
 
 class AnalysisViewerPage extends StatelessWidget {
   final DetectionResult detectionResult;
@@ -24,43 +42,50 @@ class AnalysisViewerPage extends StatelessWidget {
     required this.timeCaptured,
   });
 
-  // Color based on result
-  Color _getResultColor(String? label, double confidence) {
-    if (label == null) return Colors.grey;
-    if (label == 'Unknown') return Colors.yellow.shade800;
-    if (label.toLowerCase().contains('healthy')) return Colors.green.shade600;
-    return confidence > 0.8
-        ? Colors.redAccent.shade700
-        : Colors.orange.shade700;
-  }
-
-  // Status helper
-  String _getStatusText(String? label) {
+  /// Determines the style of the warning card based on the prediction
+  _WarningStyle _getWarningStyle(String? label, double confidence) {
     if (label == null) {
-      return "Analysis Pending (Data not saved or still loading)";
+      return _WarningStyle(
+        boxColor: Colors.grey.shade300,
+        titleColor: Colors.black54,
+        title: "Status",
+        subtitle: "Analysis Pending",
+        icon: Icons.hourglass_empty,
+      );
     }
     if (label == 'Unknown') {
-      return "Analysis Complete: Result below confidence threshold";
+      return _WarningStyle(
+        boxColor: Colors.yellow.shade200,
+        titleColor: Colors.yellow.shade900,
+        title: "Notice",
+        subtitle: "Result Uncertain",
+        icon: Icons.help_outline,
+      );
     }
-    return "Analysis Complete";
+    if (label.toLowerCase().contains('healthy')) {
+      return _WarningStyle(
+        boxColor: Colors.green.shade100,
+        titleColor: Colors.green.shade800,
+        title: "Status",
+        subtitle: "Healthy",
+        icon: Icons.check_circle_outline,
+      );
+    }
+
+    // Default case: Disease detected (matches the image)
+    return _WarningStyle(
+      boxColor: Colors.orange.shade100,
+      titleColor: Colors.red.shade800,
+      title: "Warning!",
+      subtitle: label,
+      icon: Icons.warning_amber_rounded,
+    );
   }
 
-  // Detail row builder
-  Widget _buildDetailRow(
-    String label,
-    String value, {
-    bool isHighlighted = false,
-  }) {
-    return Container(
-      padding: isHighlighted
-          ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
-          : const EdgeInsets.symmetric(vertical: 8),
-      decoration: isHighlighted
-          ? BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(8),
-            )
-          : null,
+  // Detail row builder (simplified)
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -68,8 +93,7 @@ class AnalysisViewerPage extends StatelessWidget {
             label,
             style: GoogleFonts.lato(
               fontSize: 16,
-              color: isHighlighted ? kDarkBrown : Colors.black87,
-              fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
+              color: Colors.black54,
             ),
           ),
           Text(
@@ -85,6 +109,67 @@ class AnalysisViewerPage extends StatelessWidget {
     );
   }
 
+  /// Builds the "AI Conf: X%" chip
+  Widget _buildConfidenceChip(double confidence) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        "AI Confidence: ${(confidence * 100).toStringAsFixed(0)}%",
+        style: GoogleFonts.lato(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  /// Builds the "Warning! Early Blight" card
+  Widget _buildWarningCard(String? prediction, double confidence) {
+    final style = _getWarningStyle(prediction, confidence);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: style.boxColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(style.icon, color: style.titleColor, size: 30),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  style.title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    color: style.titleColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  style.subtitle,
+                  style: GoogleFonts.lato(
+                    fontSize: 20,
+                    color: kDarkBrown,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final File imageFile = detectionResult.file;
@@ -92,119 +177,119 @@ class AnalysisViewerPage extends StatelessWidget {
     final double confidence = detectionResult.confidence;
     final bool fileOk = imageFile.existsSync();
 
-    final Color resultColor = _getResultColor(prediction, confidence);
-    final String statusText = _getStatusText(prediction);
-
     final double imageAreaHeight = MediaQuery.of(context).size.height * 0.45;
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
+      // This allows the AppBar to float over the body
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        // Sets status bar icons to be light (for dark backgrounds)
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         title: Text(
           'Analysis Viewer',
           style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            color: kDarkBrown,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // --- Status Banner ---
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withAlpha(12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  statusText,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.lato(fontSize: 16, color: Colors.black54),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // --- Image Display ---
-              Center(
-                child: Container(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // --- Image Header ---
+            Stack(
+              children: [
+                Container(
                   height: imageAreaHeight,
-                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: Colors.grey.shade400,
                   ),
-                  child: Center(
-                    child: fileOk
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(imageFile, fit: BoxFit.contain),
-                          )
-                        : Icon(
-                            Icons.image_not_supported,
-                            size: 80,
-                            color: Colors.grey.shade300,
-                          ),
-                  ),
+                  child: fileOk
+                      ? Image.file(
+                          imageFile,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        )
+                      : Icon(
+                          Icons.image_not_supported,
+                          size: 80,
+                          color: Colors.grey.shade300,
+                        ),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- Prediction Result (added back) ---
-              if (prediction != null)
-                Center(
-                  child: Text(
-                    prediction,
-                    style: GoogleFonts.poppins(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: resultColor,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 12),
-
-              // --- Analysis Details ---
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Analysis Details",
-                      style: GoogleFonts.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: kDarkBrown,
+                // --- Scrim (for text readability) ---
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withOpacity(0.6),
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.4),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0.0, 0.5, 1.0],
                       ),
                     ),
-                    const Divider(),
-
-                    _buildDetailRow(
-                      "Confidence",
-                      "${(confidence * 100).toStringAsFixed(1)}%",
-                    ),
-                    _buildDetailRow("Duration of analysis", durationText),
-                    _buildDetailRow("Date Captured", dateCaptured),
-                    _buildDetailRow("Time", timeCaptured),
-                  ],
+                  ),
                 ),
+                // --- Confidence Chip ---
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: _buildConfidenceChip(confidence),
+                ),
+              ],
+            ),
+
+            // --- Content Area ---
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  // --- Warning Card ---
+                  if (prediction != null)
+                    _buildWarningCard(prediction, confidence),
+                  
+                  const SizedBox(height: 16),
+
+                  // --- Analysis Details Card ---
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Analysis Details",
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: kDarkBrown,
+                          ),
+                        ),
+                        const Divider(thickness: 1, height: 24),
+                        _buildDetailRow("Duration of analysis", durationText),
+                        _buildDetailRow("Date Captured", dateCaptured),
+                        _buildDetailRow("Time", timeCaptured),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

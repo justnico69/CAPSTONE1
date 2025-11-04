@@ -47,6 +47,7 @@ dependencies:
   material_design_icons_flutter: ^7.0.7296
   flutter_local_notifications: ^19.4.2
   shared_preferences: ^2.2.3
+  flutter_speed_dial: ^7.0.0
   
   path: ^1.9.0
  
@@ -114,7 +115,7 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/app_icon2.png"
+  image_path: "assets/images/app_icon3.png"
 
 dependency_overrides:
   image_picker: ^1.1.2
