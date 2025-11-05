@@ -14,7 +14,7 @@ class TutorialPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         title: Text(
-          "How to Use SPOTato",
+          "SPOTato Manual", // --- CHANGED ---
           style: GoogleFonts.poppins(
             color: kDarkBrown,
             fontWeight: FontWeight.bold,
@@ -26,63 +26,117 @@ class TutorialPage extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: ListView(
           children: [
-            Text(
-              "👋 Welcome to SPOTato!",
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: kDarkBrown,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "This guide will help you understand how to use SPOTato to detect potato leaf diseases and manage your analysis results.",
-              style: GoogleFonts.poppins(fontSize: 15, color: Colors.grey[700]),
+            // --- WELCOME SECTION (MODIFIED) ---
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Image.asset(
+                  'assets/images/spotato_logo.png',
+                  width: 36,
+                  height: 36,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Welcome to SPOTato",
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: kDarkBrown,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "This is a quick setup guide to help you understand how to use SPOTato. Follow these quick steps to get started:", // Text from image
+                        style: GoogleFonts.poppins(fontSize: 15, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                )
+              ],
             ),
             const SizedBox(height: 25),
 
-            // Step 1
+            // --- STEP 1 (MODIFIED CALL) ---
             _buildStep(
-              stepNumber: "1",
-              title: "Detect Disease",
-              description:
-                  "Tap the 'Detect Disease' button on the home screen. You will be redirected to the scanning page where you can add images of potato leaves.",
+              icon: Icons.search,
+              title: "1. Detect Disease",
+              // We use RichText here to allow for bolding
+              description: TextSpan(
+                // This is the default style for all text in this block
+                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                children: [
+                  const TextSpan(text: "Tap "),
+                  TextSpan(
+                    text: "'Detect Disease'",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  const TextSpan(text: " on the Home screen to begin scanning potato leaves."),
+                ],
+              ),
             ),
 
-            // Step 2
+            // --- STEP 2 (MODIFIED CALL) ---
             _buildStep(
-              stepNumber: "2",
-              title: "Add or Capture Images",
-              description:
-                  "You can either use the Tello drone (Connect to Tello's Wifi Hotspot first) to capture images or add them manually from your gallery. The AI will analyze each image and determine if the leaf is healthy or has blight.",
+              icon: Icons.camera_alt_outlined,
+              title: "2. Add or Capture Images",
+              description: TextSpan(
+                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                children: [
+                  const TextSpan(text: "Use the "),
+                  TextSpan(
+                    text: "'Tello drone'",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  const TextSpan(text: " or "),
+                  TextSpan(
+                    text: "'Gallery'",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  const TextSpan(text: " to upload potato leaf images. The AI checks if each leaf is healthy or infected."),
+                ],
+              ),
             ),
 
-            // Step 3
+            // --- STEP 3 (MODIFIED CALL) ---
             _buildStep(
-              stepNumber: "3",
-              title: "Save Your Results",
-              description:
-                  "After analysis, you can choose to save the current scan. Each saved session will be stored in the Albums page with its own folder name.",
+              icon: Icons.save_alt_outlined,
+              title: "3. Save Results",
+              description: TextSpan(
+                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                children: [
+                  const TextSpan(text: "After analysis, tap "),
+                  TextSpan(
+                    text: "'Save'",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  const TextSpan(text: " to store your scan in "),
+                  TextSpan(
+                    text: "'Albums'",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  const TextSpan(text: ". You can name the scan for easy tracking."),
+                ],
+              ),
             ),
 
-            // Step 4
+            // --- STEP 4 (MODIFIED CALL) ---
             _buildStep(
-              stepNumber: "4",
-              title: "View Saved Albums",
-              description:
-                  "Go to the 'Albums' tab at the bottom to view all your previous scans. You can open a folder to see analyzed images and their results.",
-            ),
-
-            const SizedBox(height: 30),
-            Center(
-              child: Text(
-                "🌿 SPOTato — Detect, Analyze, and Manage with Ease!",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  color: kOrange,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+              icon: Icons.photo_album_outlined,
+              title: "4. View Saved Albums",
+              description: TextSpan(
+                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                children: [
+                  const TextSpan(text: "Go to the "),
+                  TextSpan(
+                    text: "'Albums'",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  const TextSpan(text: " tab to view your saved scans, including analyzed images and results."),
+                ],
               ),
             ),
           ],
@@ -91,10 +145,11 @@ class TutorialPage extends StatelessWidget {
     );
   }
 
+  // --- _buildStep WIDGET (MODIFIED) ---
   Widget _buildStep({
-    required String stepNumber,
+    required IconData icon, // CHANGED
     required String title,
-    required String description,
+    required TextSpan description, // CHANGED
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -114,14 +169,12 @@ class TutorialPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            radius: 16,
+            radius: 24, // CHANGED - made bigger
             backgroundColor: kOrange,
-            child: Text(
-              stepNumber,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Icon( // CHANGED
+              icon,
+              color: Colors.white,
+              size: 28, // CHANGED
             ),
           ),
           const SizedBox(width: 14),
@@ -138,12 +191,9 @@ class TutorialPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                  ),
+                // Use RichText to render the TextSpan
+                RichText( // CHANGED
+                  text: description,
                 ),
               ],
             ),
