@@ -1,36 +1,30 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart'; // Added for debugPrint
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
-import 'config.dart'; // We'll need this for the DetectionResult class
-
-// --- The Database Helper Class ---
-// Manages all database operations: creating the DB, tables, and CRUD operations.
+import 'config.dart';
 
 class DatabaseHelper {
-  // --- Database constants ---
   static const _databaseName = "spotato.db";
   static const _databaseVersion = 1;
 
-  // --- Table and column names ---
   static const tableAnalyses = 'analyses';
+
   static const columnId = 'id';
   static const columnImagePath = 'imagePath';
   static const columnLabel = 'label';
   static const columnConfidence = 'confidence';
-  static const columnDuration = 'analysisDuration'; // in milliseconds
-  static const columnCaptureTime = 'captureTime'; // ISO 8601 String
+  static const columnDuration = 'analysisDuration';
+  static const columnCaptureTime = 'captureTime';
   static const columnAlbumName = 'albumName';
+  static const columnRowTag = 'rowTag'; // New column for the row tag
 
-  // --- Singleton instance ---
-  // This pattern ensures we only ever have one instance of this class.
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
 
-  // --- Database connection ---
-  // This holds the single, app-wide database connection.
   static Database? _database;
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -38,7 +32,6 @@ class DatabaseHelper {
     return _database!;
   }
 
-  /// Initializes the database by finding the correct path and creating the tables.
   _initDatabase() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String path = join(documentsDirectory.path, _databaseName);
@@ -49,7 +42,6 @@ class DatabaseHelper {
     );
   }
 
-  /// Creates the database tables when the app is first installed.
   Future _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $tableAnalyses (
@@ -59,12 +51,12 @@ class DatabaseHelper {
         $columnConfidence REAL NOT NULL,
         $columnDuration INTEGER,
         $columnCaptureTime TEXT NOT NULL,
-        $columnAlbumName TEXT NOT NULL
+        $columnAlbumName TEXT NOT NULL,
+        $columnRowTag TEXT 
       )
-    ''');
+      ''');
   }
 
-  /// 1. CREATE: Inserts a new analysis record into the database.
   Future<int> insertAnalysis(DetectionResult result, String albumName) async {
     Database db = await instance.database;
     final map = {
@@ -74,18 +66,15 @@ class DatabaseHelper {
       columnDuration: result.analysisDuration?.inMilliseconds,
       columnCaptureTime: result.captureTime?.toIso8601String(),
       columnAlbumName: albumName,
+      columnRowTag: result.rowTag,
     };
     return await db.insert(
       tableAnalyses,
       map,
-      // Replace any existing entry for the same image path.
-      // This is useful if the user re-analyzes an image.
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
-  /// 2. READ: Fetches all analyses for a specific album.
-  /// Used in: `album_detail_page.dart`
   Future<List<DetectionResult>> getAnalysesForAlbum(String albumName) async {
     Database db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -94,58 +83,68 @@ class DatabaseHelper {
       whereArgs: [albumName],
       orderBy: '$columnCaptureTime DESC',
     );
-
     return _mapToList(maps);
   }
 
-  /// 3. READ: Fetches a list of unique album names.
-  /// Used in: `album_page.dart`
+  // 🔹 --- THIS FUNCTION IS NOW FIXED --- 🔹
   Future<List<Map<String, dynamic>>> getAllAlbums() async {
     Database db = await instance.database;
-    // We get the album name and the timestamp of the newest photo in that album.
-    // This lets us sort the albums by most recently saved.
+
+    // 🔹 FIXED: Added columnRowTag to the SELECT and GROUP BY
     final List<Map<String, dynamic>> maps = await db.rawQuery('''
-      SELECT 
-        $columnAlbumName, 
+      SELECT
+        $columnAlbumName,
+        $columnRowTag, 
         MAX($columnCaptureTime) as latestImageTime,
-        COUNT($columnId) as imageCount 
-      FROM $tableAnalyses 
+        COUNT($columnId) as imageCount
+      FROM $tableAnalyses
       WHERE $columnAlbumName != 'Current Scan'
-      GROUP BY $columnAlbumName 
+      GROUP BY $columnAlbumName, $columnRowTag
       ORDER BY latestImageTime DESC
-    ''');
+      ''');
+
+    // 🔹 DEBUGGING: See what the database is returning
+    debugPrint("--- [DatabaseHelper] getAllAlbums() ---");
+    debugPrint("Found ${maps.length} albums.");
+    for (var album in maps) {
+      debugPrint(
+        "  - Album: ${album[columnAlbumName]}, Row: ${album[columnRowTag]}",
+      );
+    }
+    // ------------------------------------------------
+
     return maps;
   }
 
-  /// 4. READ: Fetches the 4 most recent analyses from saved albums.
-  /// Used in: `home_page.dart`
   Future<List<DetectionResult>> getRecentAnalyses({int limit = 4}) async {
     Database db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
       tableAnalyses,
       where: "$columnAlbumName != ?",
-      whereArgs: ['Current Scan'], // Don't show unsaved scans on the homepage
+      whereArgs: ['Current Scan'],
       orderBy: '$columnCaptureTime DESC',
       limit: limit,
     );
     return _mapToList(maps);
   }
 
-  /// 5. UPDATE: Changes the album name for a set of analyses.
-  /// Used for saving the "Current Scan" to a permanent album.
-  /// Used in: `row_detail.dart`
-  Future<int> updateAlbumName(String oldName, String newName) async {
+  Future<int> updateAlbumAndTag(
+    String oldName,
+    String newName,
+    String rowTag,
+  ) async {
     Database db = await instance.database;
     return await db.update(
       tableAnalyses,
-      {columnAlbumName: newName},
+      {
+        columnAlbumName: newName,
+        columnRowTag: rowTag, // Set the row tag for all images in this scan
+      },
       where: '$columnAlbumName = ?',
       whereArgs: [oldName],
     );
   }
 
-  /// 6. DELETE: Deletes all analyses associated with an album name.
-  /// Used for: `_clearCurrentScan` and `_deleteSelected` in the album page.
   Future<int> deleteAlbum(String albumName) async {
     Database db = await instance.database;
     return await db.delete(
@@ -155,7 +154,6 @@ class DatabaseHelper {
     );
   }
 
-  /// Helper function to convert a list of database maps into a list of DetectionResult objects.
   List<DetectionResult> _mapToList(List<Map<String, dynamic>> maps) {
     return List.generate(maps.length, (i) {
       return DetectionResult(
@@ -166,6 +164,7 @@ class DatabaseHelper {
             ? Duration(milliseconds: maps[i][columnDuration])
             : null,
         captureTime: DateTime.parse(maps[i][columnCaptureTime]),
+        rowTag: maps[i][columnRowTag], // Read the saved tag
       );
     });
   }

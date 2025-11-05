@@ -14,7 +14,7 @@ class TutorialPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         title: Text(
-          "SPOTato Manual", // --- CHANGED ---
+          "SPOTato Manual",
           style: GoogleFonts.poppins(
             color: kDarkBrown,
             fontWeight: FontWeight.bold,
@@ -50,12 +50,15 @@ class TutorialPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "This is a quick setup guide to help you understand how to use SPOTato. Follow these quick steps to get started:", // Text from image
-                        style: GoogleFonts.poppins(fontSize: 15, color: Colors.grey[700]),
+                        "This is a quick setup guide to help you understand how to use SPOTato. Follow these quick steps to get started:",
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          color: Colors.grey[700],
+                        ),
                       ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
             const SizedBox(height: 25),
@@ -67,14 +70,24 @@ class TutorialPage extends StatelessWidget {
               // We use RichText here to allow for bolding
               description: TextSpan(
                 // This is the default style for all text in this block
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  height: 1.4,
+                ),
                 children: [
                   const TextSpan(text: "Tap "),
                   TextSpan(
                     text: "'Detect Disease'",
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
-                  const TextSpan(text: " on the Home screen to begin scanning potato leaves."),
+                  const TextSpan(
+                    text:
+                        " on the Home screen to begin scanning potato leaves.",
+                  ),
                 ],
               ),
             ),
@@ -84,19 +97,32 @@ class TutorialPage extends StatelessWidget {
               icon: Icons.camera_alt_outlined,
               title: "2. Add or Capture Images",
               description: TextSpan(
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  height: 1.4,
+                ),
                 children: [
                   const TextSpan(text: "Use the "),
                   TextSpan(
                     text: "'Tello drone'",
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
                   const TextSpan(text: " or "),
                   TextSpan(
                     text: "'Gallery'",
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
-                  const TextSpan(text: " to upload potato leaf images. The AI checks if each leaf is healthy or infected."),
+                  const TextSpan(
+                    text:
+                        " to upload potato leaf images. The AI checks if each leaf is healthy or infected.",
+                  ),
                 ],
               ),
             ),
@@ -106,19 +132,31 @@ class TutorialPage extends StatelessWidget {
               icon: Icons.save_alt_outlined,
               title: "3. Save Results",
               description: TextSpan(
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  height: 1.4,
+                ),
                 children: [
                   const TextSpan(text: "After analysis, tap "),
                   TextSpan(
                     text: "'Save'",
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
                   const TextSpan(text: " to store your scan in "),
                   TextSpan(
                     text: "'Albums'",
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
-                  const TextSpan(text: ". You can name the scan for easy tracking."),
+                  const TextSpan(
+                    text: ". You can name the scan for easy tracking.",
+                  ),
                 ],
               ),
             ),
@@ -128,14 +166,24 @@ class TutorialPage extends StatelessWidget {
               icon: Icons.photo_album_outlined,
               title: "4. View Saved Albums",
               description: TextSpan(
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  height: 1.4,
+                ),
                 children: [
                   const TextSpan(text: "Go to the "),
                   TextSpan(
                     text: "'Albums'",
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
-                  const TextSpan(text: " tab to view your saved scans, including analyzed images and results."),
+                  const TextSpan(
+                    text:
+                        " tab to view your saved scans, including analyzed images and results.",
+                  ),
                 ],
               ),
             ),
@@ -145,11 +193,10 @@ class TutorialPage extends StatelessWidget {
     );
   }
 
-  // --- _buildStep WIDGET (MODIFIED) ---
   Widget _buildStep({
-    required IconData icon, // CHANGED
+    required IconData icon,
     required String title,
-    required TextSpan description, // CHANGED
+    required TextSpan description,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -169,13 +216,9 @@ class TutorialPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            radius: 24, // CHANGED - made bigger
+            radius: 24,
             backgroundColor: kOrange,
-            child: Icon( // CHANGED
-              icon,
-              color: Colors.white,
-              size: 28, // CHANGED
-            ),
+            child: Icon(icon, color: Colors.white, size: 28),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -191,10 +234,8 @@ class TutorialPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                // Use RichText to render the TextSpan
-                RichText( // CHANGED
-                  text: description,
-                ),
+
+                RichText(text: description),
               ],
             ),
           ),

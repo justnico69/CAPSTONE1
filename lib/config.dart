@@ -1,4 +1,3 @@
-// lib/config.dart
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,9 +5,9 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
-// ==========================================================
+// ========================
 // MODEL CONFIGURATION
-// ==========================================================
+// ========================
 const String kModelAssetPath = 'assets/models/model.tflite';
 const int kModelInputSize = 300;
 const double kConfidenceThreshold = 0.35;
@@ -26,9 +25,9 @@ const Map<String, String> kLabelFriendly = {
   'Potato___healthy': 'Healthy',
 };
 
-// ==========================================================
+// ========================
 // DETECTION RESULT CLASS
-// ==========================================================
+// ========================
 class DetectionResult {
   final File file;
   bool isLoading;
@@ -37,6 +36,9 @@ class DetectionResult {
   Duration? analysisDuration;
   DateTime? captureTime;
 
+  // 🔹 --- ADDED THIS LINE --- 🔹
+  String? rowTag; // Holds the user-defined row (e.g., "Row 5")
+
   DetectionResult({
     required this.file,
     this.isLoading = false,
@@ -44,6 +46,7 @@ class DetectionResult {
     this.confidence = 0.0,
     this.analysisDuration,
     this.captureTime,
+    this.rowTag, // 🔹 ADDED THIS LINE
   });
 
   Map<String, dynamic> toJson() => {
@@ -62,16 +65,16 @@ class DetectionResult {
   }
 }
 
-// ==========================================================
+// ========================
 // GLOBALS
-// ==========================================================
+// ========================
 Interpreter? globalInterpreter;
 TensorType? globalInputType;
 List<int>? globalInputShape;
 
-// ==========================================================
+// ========================
 // HELPERS
-// ==========================================================
+// ========================
 String sha256FromBytes(Uint8List bytes) =>
     crypto.sha256.convert(bytes).toString();
 
@@ -99,7 +102,7 @@ Future<void> loadModelFromAsset() async {
 void closeModel() {
   try {
     globalInterpreter?.close();
-  } catch (_) {}
+  } catch (__) {}
   globalInterpreter = null;
   globalInputShape = null;
   globalInputType = null;
