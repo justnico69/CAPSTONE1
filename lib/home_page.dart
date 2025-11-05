@@ -1,10 +1,112 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:installed_apps/app_info.dart';
+import 'package:installed_apps/installed_apps.dart';
+import 'package:spotato/album_page.dart';
+import 'package:spotato/analysis_viewer_page.dart';
+import 'package:spotato/config.dart';
+import 'package:spotato/database_helper.dart';
+import 'package:spotato/row_detail.dart';
+import 'package:spotato/tutorial_page.dart';
 
-import 'detector_page.dart';
-
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  String telloPackage = '';
+  // 🔹 Changed: We now have TWO variables.
+  // 1. The Future for the *initial* load.
+  late Future<List<DetectionResult>> _initialLoadFuture;
+  // 2. A List to hold the current data (for instant refreshes).
+  List<DetectionResult>? _recentResults;
+
+  @override
+  void initState() {
+    super.initState();
+    checkInstalledApps();
+    // ✅ Assign the future here ONCE for the initial load.
+    _initialLoadFuture = DatabaseHelper.instance.getRecentAnalyses();
+  }
+
+  Future<void> checkInstalledApps() async {
+    // ... (This function remains unchanged)
+    try {
+      List<AppInfo> apps = await InstalledApps.getInstalledApps(true, true);
+      for (var app in apps) {
+        if (app.packageName == "com.ryzerobotics.tello") {
+          telloPackage = app.packageName;
+          break;
+        }
+      }
+    } catch (e) {
+      debugPrint("Could not check for installed apps: $e");
+    }
+  }
+
+  /// 🔹 Changed: This is now our "refresh" function.
+  /// It fetches new data and uses setState to update the UI instantly.
+  Future<void> _refreshRecentImages() async {
+    final results = await DatabaseHelper.instance.getRecentAnalyses();
+    if (mounted) {
+      setState(() {
+        _recentResults = results; // Update the list
+      });
+    }
+  }
+
+  /// 🔹 Changed: Now calls our new "refresh" function.
+  void _navigateAndRefresh(BuildContext context, Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => page)).then(
+      (_) {
+        // Refresh the list when the user returns.
+        _refreshRecentImages();
+      },
+    );
+  }
+
+  // --- BOTTOM NAV ITEM WIDGET ---
+  Widget _buildBottomNavItem({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required double screenWidth,
+  }) {
+    final color = isSelected
+        ? const Color.fromARGB(255, 82, 42, 4)
+        : Colors.grey;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          if (label == "Home") {
+            _refreshRecentImages(); // Call the refresh function
+          } else if (label == "Albums") {
+            _navigateAndRefresh(context, const AlbumsPage());
+          }
+        },
+        child: Column(
+          // ... (rest of this widget is unchanged)
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: screenWidth * 0.06),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                color: color,
+                fontSize: screenWidth * 0.03,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,16 +117,17 @@ class HomePage extends StatelessWidget {
       backgroundColor: const Color.fromARGB(243, 248, 248, 248),
       body: Column(
         children: [
-          // -- HEADER --
+          // HEADER (Unchanged)
           ClipRRect(
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(70),
               bottomRight: Radius.circular(70),
             ),
             child: Container(
-              height: screenHeight * 0.195,
+              height: screenHeight * 0.18,
               color: Colors.white,
               child: SafeArea(
+                bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(30, 0, 30, 0),
                   child: Row(
@@ -38,7 +141,7 @@ class HomePage extends StatelessWidget {
                           ),
                           const SizedBox(width: 10),
                           Column(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               RichText(
@@ -71,7 +174,7 @@ class HomePage extends StatelessWidget {
                               Text(
                                 "at your service!",
                                 style: GoogleFonts.poppins(
-                                  color: Color.fromARGB(255, 160, 98, 45),
+                                  color: const Color.fromARGB(255, 160, 98, 45),
                                   fontSize: 15,
                                 ),
                               ),
@@ -81,11 +184,17 @@ class HomePage extends StatelessWidget {
                       ),
                       IconButton(
                         icon: const Icon(
-                          Icons.notifications,
+                          Icons.help_outline,
                           color: Color.fromARGB(255, 128, 68, 12),
                           size: 28,
                         ),
-                        onPressed: () {},
+                        // 🔹 Changed: Use a simple push for the TutorialPage (no refresh needed)
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TutorialPage(),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -94,7 +203,7 @@ class HomePage extends StatelessWidget {
             ),
           ),
 
-          // -- RESULTS CONTENT --
+          // MAIN CONTENT
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(
@@ -105,7 +214,7 @@ class HomePage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Results",
+                    "Recent Picture",
                     style: GoogleFonts.poppins(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -113,101 +222,184 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  AspectRatio(
-                    aspectRatio: 4 / 3,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withAlpha(20),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
+
+                  // ✅ Changed: The FutureBuilder now uses our initial-load-only future.
+                  FutureBuilder<List<DetectionResult>>(
+                    future: _initialLoadFuture,
+                    builder: (context, snapshot) {
+                      // 🔹 Changed: We check our state list FIRST, then the snapshot.
+                      // This ensures refreshes are instant.
+                      final recentResults = _recentResults ?? snapshot.data;
+
+                      // 1. WHILE LOADING (INITIAL LOAD ONLY):
+                      if (recentResults == null &&
+                          snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(40.0),
+                            child: CircularProgressIndicator(
+                              color: Color(0xFFEAA944),
                             ),
-                            child: Text(
-                              "No images yet. Tap Button to scan.",
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                color: Colors.grey[600],
+                          ),
+                        );
+                      }
+
+                      // 2. ON ERROR (INITIAL LOAD ONLY):
+                      if (snapshot.hasError && _recentResults == null) {
+                        return const Center(
+                          child: Text("Error loading recent images."),
+                        );
+                      }
+
+                      final recentResultsList = recentResults ?? [];
+
+                      // 3. IF EMPTY:
+                      if (recentResultsList.isEmpty) {
+                        return Container(
+                          // ... (empty state UI remains the same)
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(20),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(height: 50),
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const DetectorPage(),
+                          child: Column(
+                            children: [
+                              Text(
+                                "No recent images have been added yet.",
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                onPressed: () => _navigateAndRefresh(
+                                  context,
+                                  const RowDetailPage(
+                                    albumName: "New Detections",
+                                    rowName: "Current Scan",
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFEAA944),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 40,
+                                    vertical: 16,
+                                  ),
+                                ),
+                                child: Text(
+                                  "Detect Disease",
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      // 4. IF DATA EXISTS:
+                      return Column(
+                        children: [
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                ),
+                            itemCount: recentResultsList.length,
+                            itemBuilder: (_, i) {
+                              final res = recentResultsList[i];
+                              return GestureDetector(
+                                onTap: () => _navigateAndRefresh(
+                                  context,
+                                  AnalysisViewerPage(
+                                    detectionResult: res,
+                                    durationText:
+                                        res.analysisDuration?.inMilliseconds
+                                            .toString() ??
+                                        "N/A",
+                                    dateCaptured:
+                                        "${res.captureTime?.month}/${res.captureTime?.day}/${res.captureTime?.year}",
+                                    timeCaptured:
+                                        "${res.captureTime?.hour}:${res.captureTime?.minute.toString().padLeft(2, '0')}",
+                                  ),
+                                ),
+                                child: Container(
+                                  // ... (rest of this UI is unchanged)
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: Colors.white,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black12,
+                                        blurRadius: 5,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.file(
+                                      res.file,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, o, s) => const Center(
+                                        child: Icon(Icons.broken_image),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               );
                             },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFEAA944),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          ),
+                          const SizedBox(height: 30),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () => _navigateAndRefresh(
+                                context,
+                                const RowDetailPage(
+                                  albumName: "New Detections",
+                                  rowName: "Current Scan",
+                                ),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 40,
-                                vertical: 16,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFEAA944),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              "Detect Disease",
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
+                              child: Text(
+                                "Detect Disease",
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                  ),
-
-                  // -- IMAGES CONTENT --
-                  const SizedBox(height: 30),
-                  Text(
-                    "Images",
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: const Color.fromARGB(255, 128, 68, 12),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    height: screenHeight * 0.25,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(20),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      "Folder is empty.\nImages are not imported yet.",
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(color: Colors.grey[600]),
-                    ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -216,22 +408,8 @@ class HomePage extends StatelessWidget {
         ],
       ),
 
-      // --- NAVIGATION BAR ---
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const DetectorPage()),
-          );
-        },
-        backgroundColor: const Color.fromARGB(255, 82, 42, 4),
-        shape: const CircleBorder(),
-        child: const Icon(Icons.document_scanner_outlined, color: Colors.white),
-      ),
+      // NAVIGATION BAR (Unchanged)
       bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8.0,
         color: Colors.white,
         elevation: 10.0,
         height: screenHeight * 0.09,
@@ -244,44 +422,15 @@ class HomePage extends StatelessWidget {
               isSelected: true,
               screenWidth: screenWidth,
             ),
-            SizedBox(width: screenWidth * 0.05),
             _buildBottomNavItem(
-              icon: Icons.history,
-              label: "History",
+              icon: Icons.photo_album,
+              label: "Albums",
               isSelected: false,
               screenWidth: screenWidth,
             ),
           ],
         ),
       ),
-    );
-  }
-
-  // --- BOTTOM NAV ITEM WIDGET ---
-  Widget _buildBottomNavItem({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required double screenWidth,
-  }) {
-    final color = isSelected
-        ? const Color.fromARGB(255, 82, 42, 4)
-        : Colors.grey;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: screenWidth * 0.06),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            color: color,
-            fontSize: screenWidth * 0.03,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
     );
   }
 }
