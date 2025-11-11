@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'album_detail.dart';
-import 'database_helper.dart';
+import 'database_helper.dart'; // We need this to get the column name
 
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
 const Color kOrange = Color(0xFFEAA944);
@@ -15,7 +15,6 @@ class AlbumsPage extends StatefulWidget {
 }
 
 class _AlbumsPageState extends State<AlbumsPage> {
-  // 🔹 Changed: We now use a Future to manage the loading state of the albums.
   late Future<List<Map<String, dynamic>>> _albumsFuture;
   Set<String> _selectedAlbums = {};
   bool _selectionMode = false;
@@ -26,14 +25,12 @@ class _AlbumsPageState extends State<AlbumsPage> {
     _loadAlbums();
   }
 
-  /// 🔹 Changed: This function now assigns the future.
   void _loadAlbums() {
     setState(() {
       _albumsFuture = DatabaseHelper.instance.getAllAlbums();
     });
   }
 
-  /// Deletes selected albums from the database.
   Future<void> _deleteSelected(List<String> albumNames) async {
     if (_selectedAlbums.isEmpty) return;
 
@@ -66,14 +63,14 @@ class _AlbumsPageState extends State<AlbumsPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('🗑 Deleted ${_selectedAlbums.length} album(s)')),
+      SnackBar(content: Text('Deleted ${_selectedAlbums.length} album(s)')),
     );
 
     setState(() {
       _selectionMode = false;
       _selectedAlbums.clear();
+      _loadAlbums(); // Refresh the list
     });
-    _loadAlbums(); // Refresh the list
   }
 
   String _formatDate(String isoDate) {
@@ -108,7 +105,6 @@ class _AlbumsPageState extends State<AlbumsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(243, 248, 248, 248),
-      // ✅ Changed: The AppBar is now built within the FutureBuilder to access album data.
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _albumsFuture,
         builder: (context, snapshot) {
@@ -151,24 +147,20 @@ class _AlbumsPageState extends State<AlbumsPage> {
               ],
             ),
             body: () {
-              // Using a closure to return the correct body widget
-              // 1. WHILE LOADING
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(color: kOrange),
                 );
               }
 
-              // 2. ON ERROR
               if (snapshot.hasError) {
                 return const Center(child: Text("Error loading albums."));
               }
 
-              // 3. IF EMPTY
               if (allAlbums.isEmpty) {
                 return Center(
                   child: Text(
-                    "No saved albums yet.",
+                    "No saved albums. Go take some photos!",
                     style: GoogleFonts.poppins(
                       color: Colors.grey[600],
                       fontSize: 16,
@@ -187,6 +179,28 @@ class _AlbumsPageState extends State<AlbumsPage> {
                   final imageCount = album['imageCount'] as int;
                   final latestDate = album['latestImageTime'] as String;
                   final isSelected = _selectedAlbums.contains(albumName);
+
+                  // 🔹 --- DEBUGGING PRINT --- 🔹
+                  debugPrint(
+                    "--- [AlbumPage] Building tile for: $albumName ---",
+                  );
+                  debugPrint(
+                    "  - Fetched rowTag from DB: ${album[DatabaseHelper.columnRowTag]}",
+                  );
+                  // -----------------------------
+
+                  // 1. Get the rowTag (it might be null, so it's String?)
+                  final rowTag = album[DatabaseHelper.columnRowTag] as String?;
+
+                  // 2. Build the subtitle string dynamically
+                  final String subtitleText = [
+                    // Only add the row tag if it exists and is not empty
+                    if (rowTag != null && rowTag.isNotEmpty) rowTag,
+                    "$imageCount image(s)",
+                    "Last added: ${_formatDate(latestDate)}",
+                  ].join(" • "); // Join with a "•" separator
+
+                  // 🔹 --- END OF NEW LOGIC --- 🔹
 
                   return GestureDetector(
                     onLongPress: () {
@@ -245,10 +259,15 @@ class _AlbumsPageState extends State<AlbumsPage> {
                             color: kDarkBrown,
                           ),
                         ),
+
+                        // 🔹 --- UPDATED SUBTITLE --- 🔹
                         subtitle: Text(
-                          "$imageCount image(s) • Last added: ${_formatDate(latestDate)}",
+                          subtitleText, // Use our new dynamic subtitle text
                           style: GoogleFonts.poppins(fontSize: 13),
+                          overflow:
+                              TextOverflow.ellipsis, // Add '...' if too long
                         ),
+
                         trailing: _selectionMode
                             ? Checkbox(
                                 value: isSelected,

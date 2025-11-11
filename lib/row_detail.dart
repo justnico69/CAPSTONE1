@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
@@ -6,7 +7,6 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:spotato/image_handler.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 import 'analysis.dart';
 import 'analysis_viewer_page.dart';
@@ -44,7 +44,14 @@ class _RowDetailPageState extends State<RowDetailPage> {
     super.initState();
     _telloPackage = widget.telloPackage;
     NotificationService.init();
-    _lastImportTimestamp = DateTime.now();
+
+    // 🔹 FIX: Store the timestamp in UTC format.
+    _lastImportTimestamp = DateTime.now().toUtc();
+    debugPrint("--- PAGE LOADED ---");
+    debugPrint(
+      "Initial timestamp set (UTC): ${_lastImportTimestamp.toIso8601String()}",
+    );
+
     _init();
   }
 
@@ -178,7 +185,13 @@ class _RowDetailPageState extends State<RowDetailPage> {
   }
 
   Future<void> _importFromTelloFolder() async {
+    debugPrint("--- IMPORT TELLO PHOTOS TAPPED ---");
+
     var status = await Permission.manageExternalStorage.status;
+    debugPrint(
+      "1. Checking 'Manage External Storage' permission. Status: ${status.name}",
+    );
+
     if (status.isDenied) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -190,9 +203,11 @@ class _RowDetailPageState extends State<RowDetailPage> {
         );
       }
       status = await Permission.manageExternalStorage.request();
+      debugPrint("2. Permission requested. New status: ${status.name}");
     }
 
     if (status.isPermanentlyDenied) {
+      debugPrint("3. ❌ Permission permanently denied.");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -207,13 +222,23 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
 
     if (status.isGranted) {
-      final importCheckTime = DateTime.now();
+      debugPrint("3. ✅ Permission is GRANTED.");
+
+      final importCheckTime = DateTime.now().toUtc();
+
+      debugPrint(
+        "4. Calling ImageHandler. Checking for files modified AFTER (UTC): ${_lastImportTimestamp.toIso8601String()}",
+      );
 
       final sourceFiles = await ImageHandler.importFromTello(
         _lastImportTimestamp,
       );
 
       _lastImportTimestamp = importCheckTime;
+      debugPrint("5. Import finished. Found ${sourceFiles.length} new files.");
+      debugPrint(
+        "6. Timestamp updated. Will now ignore files before (UTC): ${_lastImportTimestamp.toIso8601String()}",
+      );
 
       if (sourceFiles.isEmpty) {
         if (mounted) {
@@ -245,6 +270,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
         );
       }
     } else {
+      debugPrint("3. ❌ Permission was DENIED.");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -261,11 +287,15 @@ class _RowDetailPageState extends State<RowDetailPage> {
     if (!mounted) return;
     setState(() => res.isLoading = true);
     await runModelAnalysis(res);
+    // 🔹 MODIFIED: We only save the rowTag when saving the *whole album*
+    // so we pass null for the rowTag here.
+    res.rowTag = null;
     await DatabaseHelper.instance.insertAnalysis(res, 'Current Scan');
     if (!mounted) return;
     setState(() => res.isLoading = false);
   }
 
+  // 🔹 --- THIS IS THE FULLY REBUILT "SAVE" FUNCTION --- 🔹
   Future<void> _saveCurrentScan() async {
     if (_results.isEmpty) {
       ScaffoldMessenger.of(
@@ -274,64 +304,179 @@ class _RowDetailPageState extends State<RowDetailPage> {
       return;
     }
     final now = DateTime.now();
+
+    // Use the new readable format
     final String dateStr = DateFormat('MMM-d-y').format(now);
     final String timeStr = DateFormat('h-mm_a').format(now);
-
     final folderName = "Scan_${dateStr}_$timeStr";
+
+    // --- This will hold the value from the dropdown ---
+    String? selectedRowTag = "Row 1";
+    String otherRowTag = ""; // For the "Other" text field
+
+    // --- Generate our dropdown list ---
+    List<String> rowOptions = List.generate(20, (i) => "Row ${i + 1}");
+    rowOptions.add("Other"); // Add "Other" at the end
+
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text(
-          'Save Scan',
-          style: GoogleFonts.poppins(
-            color: Colors.brown,
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-          ),
-        ),
-        content: Text(
-          'You will be saving these images into an album named "$folderName".\n\nProceed?',
-          style: GoogleFonts.poppins(color: Colors.black87, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(
-                color: Colors.brown,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kOrange,
+      builder: (ctx) {
+        // We use a StatefulBuilder so the dialog can update its own state
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ),
-            child: Text(
-              'Save',
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
+              title: Text(
+                'Save Scan',
+                style: GoogleFonts.poppins(
+                  color: Colors.brown,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
               ),
-            ),
-          ),
-        ],
-      ),
+              // Make the content scrollable
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'This will save ${_results.length} images to a new album:',
+                      style: GoogleFonts.poppins(
+                        color: Colors.black87,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // The album name
+                    Text(
+                      '"$folderName"',
+                      style: GoogleFonts.poppins(
+                        color: Colors.black,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Please select the Row/Location for this scan:',
+                      style: GoogleFonts.poppins(
+                        color: Colors.black87,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // The new Dropdown menu
+                    DropdownButtonFormField<String>(
+                      value: selectedRowTag,
+                      items: rowOptions.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setDialogState(() {
+                          selectedRowTag = newValue;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                    // This text field only appears if "Other" is selected
+                    if (selectedRowTag == "Other")
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10.0),
+                        child: TextField(
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            labelText: "Custom Location",
+                            hintText: "e.g., North Field",
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onChanged: (value) {
+                            otherRowTag = value;
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.poppins(
+                      color: Colors.brown,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Check if they chose "Other" but left it blank
+                    if (selectedRowTag == "Other" &&
+                        otherRowTag.trim().isEmpty) {
+                      // Don't close, show an error (or just do nothing)
+                      return;
+                    }
+                    Navigator.pop(context, true);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kOrange,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'Save',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
-    if (confirm != true) return;
+    if (confirm != true) return; // User pressed "Cancel"
+
+    // Determine the final tag
+    final String finalRowTag = (selectedRowTag == "Other")
+        ? otherRowTag.trim()
+        : selectedRowTag ?? "N/A";
 
     try {
-      await DatabaseHelper.instance.updateAlbumName('Current Scan', folderName);
+      // 🔹 MODIFIED: Call the new function to save both album name and tag
+      await DatabaseHelper.instance.updateAlbumAndTag(
+        'Current Scan',
+        folderName,
+        finalRowTag,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✓ Scan saved to album "$folderName"')),
+          SnackBar(
+            content: Text(
+              '✓ Scan saved to album "$folderName" with tag "$finalRowTag"',
+            ),
+          ),
         );
         setState(() => _results.clear());
       }
@@ -360,9 +505,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  // --- Handles back button press ---
   Future<bool> _onWillPop() async {
-    // Original logic for unsaved work
     if (_results.isNotEmpty) {
       final shouldExit = await showDialog<bool>(
         context: context,
@@ -395,7 +538,12 @@ class _RowDetailPageState extends State<RowDetailPage> {
             ),
             ElevatedButton(
               onPressed: () async {
+                // 🔹 MODIFIED: We must call the save function
+                // but we can't pop(false) until it's done.
                 await _saveCurrentScan();
+                // If save was successful, _results will be empty,
+                // and the dialog won't show again.
+                // We pop(false) to just close the dialog.
                 if (mounted) Navigator.of(context).pop(false);
               },
               style: ElevatedButton.styleFrom(
@@ -439,17 +587,17 @@ class _RowDetailPageState extends State<RowDetailPage> {
     return true;
   }
 
-  // --- Builds the image tile with the new label style ---
+  // 🔹 --- MODIFIED WIDGET (Removed row tag display from here) --- 🔹
   Widget _buildImageTile(DetectionResult res) {
     final fileOk = res.file.existsSync();
     final color = (res.label == 'Healthy')
-        ? Colors.green.shade800 // Darker green for better contrast
+        ? Colors.green.shade800
         : (res.label == null)
-            ? Colors.grey.shade700 // Darker grey
-            : Colors.red.shade800; // Darker red
+        ? Colors.grey.shade700
+        : Colors.red.shade800;
 
     return GestureDetector(
-      onTap: () { // --- Original onTap functionality ---
+      onTap: () {
         if (!fileOk) return;
         Navigator.push(
           context,
@@ -464,6 +612,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
                   "${res.captureTime?.hour}:${res.captureTime?.minute.toString().padLeft(2, '0')}",
             ),
           ),
+          // We no longer need to .then() and refresh the state here,
+          // as the tag is added during save, not in the viewer.
         );
       },
       child: ClipRRect(
@@ -479,26 +629,31 @@ class _RowDetailPageState extends State<RowDetailPage> {
             // --- Full Text Label at the Bottom ---
             if (res.label != null)
               Positioned(
-                bottom: 0, // Position at the bottom
+                bottom: 0,
                 left: 0,
                 right: 0,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  color: color.withOpacity(0.8), // Semi-transparent colored background
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  color: color.withOpacity(0.8),
                   child: Text(
-                    res.label!, // Display the full label
+                    res.label!,
                     textAlign: TextAlign.center,
-                    maxLines: 1, // Ensure it stays on one line
-                    overflow: TextOverflow.ellipsis, // Add '...' if it's too long
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
                       color: Colors.white,
-                      fontSize: 10, // Smaller font size for full text
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ),
+
+            // The row tag is removed from here because these images
+            // are in "Current Scan" and haven't been tagged yet.
           ],
         ),
       ),
@@ -511,7 +666,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: const Color.fromARGB(243, 248, 248, 248),
-        // --- Original AppBar ---
         appBar: AppBar(
           backgroundColor: Colors.white,
           title: Text(
@@ -537,9 +691,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
               icon: const Icon(Icons.folder_open),
               tooltip: 'Save as Album',
               color: kDarkBrown,
-              onPressed: _saveCurrentScan,
+              onPressed: _saveCurrentScan, // This now calls our new dialog
             ),
-            // --- Delete button is removed ---
           ],
         ),
         body: GridView.builder(
@@ -558,7 +711,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
           itemBuilder: (_, i) => _buildImageTile(_results[i]),
         ),
 
-        // --- Floating Action Buttons ---
+        // --- Floating Action Buttons (Unchanged) ---
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(bottom: 16.0),
           child: SpeedDial(
@@ -566,12 +719,15 @@ class _RowDetailPageState extends State<RowDetailPage> {
             activeIcon: Icons.close,
             backgroundColor: kOrange,
             foregroundColor: Colors.white,
-            visible: true, // --- Always visible ---
+            visible: true,
             curve: Curves.bounceIn,
             heroTag: 'fab-main',
             children: [
               SpeedDialChild(
-                child: const Icon(Icons.airplanemode_active, color: Colors.white),
+                child: const Icon(
+                  Icons.airplanemode_active,
+                  color: Colors.white,
+                ),
                 backgroundColor: kDarkBrown,
                 label: 'Launch Tello',
                 labelStyle: GoogleFonts.poppins(),
