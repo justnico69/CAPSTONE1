@@ -26,7 +26,7 @@ class TutorialPage extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: ListView(
           children: [
-            // --- WELCOME SECTION (MODIFIED) ---
+            // --- WELCOME SECTION (Unchanged) ---
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -63,13 +63,11 @@ class TutorialPage extends StatelessWidget {
             ),
             const SizedBox(height: 25),
 
-            // --- STEP 1 (MODIFIED CALL) ---
+            // --- STEP 1 (Unchanged) ---
             _buildStep(
               icon: Icons.search,
               title: "1. Detect Disease",
-              // We use RichText here to allow for bolding
               description: TextSpan(
-                // This is the default style for all text in this block
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.grey[700],
@@ -81,7 +79,7 @@ class TutorialPage extends StatelessWidget {
                     text: "'Detect Disease'",
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                      color: Colors.green, // Color from your original code
                     ),
                   ),
                   const TextSpan(
@@ -92,28 +90,36 @@ class TutorialPage extends StatelessWidget {
               ),
             ),
 
-            // --- STEP 2 (MODIFIED CALL) ---
+            // --- STEP 2 (MODIFIED WITH NEW INFO) ---
             _buildStep(
               icon: Icons.camera_alt_outlined,
               title: "2. Add or Capture Images",
               description: TextSpan(
+                // Default style for this text block
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.grey[700],
-                  height: 1.4,
+                  height: 1.5, // Added space between lines
                 ),
                 children: [
-                  const TextSpan(text: "Use the "),
+                  const TextSpan(
+                    text: "Use the (+) button options:\n\n",
+                  ), // Added newline
+                  // Launch Tello
                   TextSpan(
-                    text: "'Tello drone'",
+                    text: "• 'Launch Tello':",
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.bold,
                       color: Colors.green,
                     ),
                   ),
-                  const TextSpan(text: " or "),
+                  const TextSpan(
+                    text: " Opens the drone app to fly and take photos.\n",
+                  ),
+
+                  // Import Tello Photos
                   TextSpan(
-                    text: "'Gallery'",
+                    text: "• 'Import Tello Photos':",
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.bold,
                       color: Colors.green,
@@ -121,16 +127,63 @@ class TutorialPage extends StatelessWidget {
                   ),
                   const TextSpan(
                     text:
-                        " to upload potato leaf images. The AI checks if each leaf is healthy or infected.",
+                        " Pulls the new photos from the drone's folder into this app for analysis.\n",
+                  ),
+
+                  // Gallery
+                  TextSpan(
+                    text: "• 'Gallery':",
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  const TextSpan(
+                    text: " Adds any existing images from your phone.",
                   ),
                 ],
               ),
             ),
 
-            // --- STEP 3 (MODIFIED CALL) ---
+            // --- 🔹 NEW STEP 3 (From Image) 🔹 ---
             _buildStep(
-              icon: Icons.save_alt_outlined,
-              title: "3. Save Results",
+              icon: Icons.checklist_rtl_outlined, // Icon to match image
+              title: "3. Review Analysis",
+              description: TextSpan(
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  height: 1.4,
+                ),
+                children: [
+                  const TextSpan(text: "After the analysis, the results are "),
+                  TextSpan(
+                    text: "'now displayed'",
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  const TextSpan(text: ". You can also tap the "),
+                  TextSpan(
+                    text: "'image'",
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  const TextSpan(
+                    text:
+                        " to open the Analysis Viewer for a detailed information.",
+                  ),
+                ],
+              ),
+            ),
+
+            // --- 🔹 STEP 4 (MODIFIED from old STEP 3) 🔹 ---
+            _buildStep(
+              icon: Icons.save_alt_outlined, // Kept your original icon
+              title: "4. Save Results & Row Selection", // Updated Title
               description: TextSpan(
                 style: GoogleFonts.poppins(
                   fontSize: 14,
@@ -154,17 +207,25 @@ class TutorialPage extends StatelessWidget {
                       color: Colors.green,
                     ),
                   ),
+                  const TextSpan(text: ". You also need to "),
+                  TextSpan(
+                    text: "'select a row number'", // New text
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
                   const TextSpan(
-                    text: ". You can name the scan for easy tracking.",
+                    text: " for easy location tracking.", // Updated text
                   ),
                 ],
               ),
             ),
 
-            // --- STEP 4 (MODIFIED CALL) ---
+            // --- 🔹 STEP 5 (MODIFIED from old STEP 4) 🔹 ---
             _buildStep(
-              icon: Icons.photo_album_outlined,
-              title: "4. View Saved Albums",
+              icon: Icons.photo_album_outlined, // Kept your original icon
+              title: "5. View Saved Albums", // Updated Title
               description: TextSpan(
                 style: GoogleFonts.poppins(
                   fontSize: 14,
@@ -234,7 +295,6 @@ class TutorialPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-
                 RichText(text: description),
               ],
             ),

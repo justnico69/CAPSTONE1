@@ -39,13 +39,14 @@ class _RowDetailPageState extends State<RowDetailPage> {
   bool _modelLoaded = false;
   late DateTime _lastImportTimestamp;
 
+  // --- Selection and Delete variables have been removed ---
+
   @override
   void initState() {
     super.initState();
     _telloPackage = widget.telloPackage;
     NotificationService.init();
 
-    // 🔹 FIX: Store the timestamp in UTC format.
     _lastImportTimestamp = DateTime.now().toUtc();
     debugPrint("--- PAGE LOADED ---");
     debugPrint(
@@ -105,6 +106,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     setState(() => _results = loadedResults);
   }
 
+  // 🔹 --- THIS FUNCTION HAS THE NEW NOTIFICATION LOGIC --- 🔹
   Future<void> _pickFromGallery() async {
     var status = await Permission.photos.status;
     if (status.isDenied) {
@@ -141,13 +143,18 @@ class _RowDetailPageState extends State<RowDetailPage> {
         file: compressedFile,
         captureTime: await compressedFile.lastModified(),
       );
+
+      // Analysis is run here
+      await _runAnalysis(newResult);
+
       if (mounted) setState(() => _results.add(newResult));
 
-      await _runAnalysis(newResult);
+      // 🔹 --- MODIFIED NOTIFICATION --- 🔹
       await NotificationService.show(
         title: "SPOTATO",
-        body: "Gallery image analysis completed!",
+        body: "Analysis complete: ${newResult.label ?? 'Unknown'}",
       );
+      // 🔹 --- END OF MODIFICATION --- 🔹
     }
   }
 
@@ -184,6 +191,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
+  // 🔹 --- THIS FUNCTION HAS THE NEW NOTIFICATION LOGIC --- 🔹
   Future<void> _importFromTelloFolder() async {
     debugPrint("--- IMPORT TELLO PHOTOS TAPPED ---");
 
@@ -249,7 +257,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
         return;
       }
 
-      int analyzedCount = 0;
       for (var file in sourceFiles) {
         final compressedFile = await ImageHandler.compressImage(file);
         if (compressedFile != null) {
@@ -257,17 +264,18 @@ class _RowDetailPageState extends State<RowDetailPage> {
             file: compressedFile,
             captureTime: await compressedFile.lastModified(),
           );
-          if (mounted) setState(() => _results.add(newRes));
-          await _runAnalysis(newRes);
-          analyzedCount++;
-        }
-      }
 
-      if (analyzedCount > 0) {
-        await NotificationService.show(
-          title: "SPOTATO Analysis Complete",
-          body: "$analyzedCount new Tello image(s) analyzed!",
-        );
+          // Analysis is run here
+          await _runAnalysis(newRes);
+          if (mounted) setState(() => _results.add(newRes));
+
+          // 🔹 --- MODIFIED NOTIFICATION (MOVED INSIDE LOOP) --- 🔹
+          await NotificationService.show(
+            title: "SPOTATO Analysis",
+            body: "New Tello image analyzed: ${newRes.label ?? 'Unknown'}",
+          );
+          // 🔹 --- END OF MODIFICATION --- 🔹
+        }
       }
     } else {
       debugPrint("3. ❌ Permission was DENIED.");
@@ -287,15 +295,14 @@ class _RowDetailPageState extends State<RowDetailPage> {
     if (!mounted) return;
     setState(() => res.isLoading = true);
     await runModelAnalysis(res);
-    // 🔹 MODIFIED: We only save the rowTag when saving the *whole album*
-    // so we pass null for the rowTag here.
     res.rowTag = null;
+
     await DatabaseHelper.instance.insertAnalysis(res, 'Current Scan');
+
     if (!mounted) return;
     setState(() => res.isLoading = false);
   }
 
-  // 🔹 --- THIS IS THE FULLY REBUILT "SAVE" FUNCTION --- 🔹
   Future<void> _saveCurrentScan() async {
     if (_results.isEmpty) {
       ScaffoldMessenger.of(
@@ -305,23 +312,19 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
     final now = DateTime.now();
 
-    // Use the new readable format
     final String dateStr = DateFormat('MMM-d-y').format(now);
     final String timeStr = DateFormat('h-mm_a').format(now);
     final folderName = "Scan_${dateStr}_$timeStr";
 
-    // --- This will hold the value from the dropdown ---
     String? selectedRowTag = "Row 1";
-    String otherRowTag = ""; // For the "Other" text field
+    String otherRowTag = "";
 
-    // --- Generate our dropdown list ---
-    List<String> rowOptions = List.generate(20, (i) => "Row ${i + 1}");
-    rowOptions.add("Other"); // Add "Other" at the end
+    List<String> rowOptions = List.generate(10, (i) => "Row ${i + 1}");
+    rowOptions.add("Other");
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) {
-        // We use a StatefulBuilder so the dialog can update its own state
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -336,7 +339,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
                   fontSize: 18,
                 ),
               ),
-              // Make the content scrollable
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -350,7 +352,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // The album name
                     Text(
                       '"$folderName"',
                       style: GoogleFonts.poppins(
@@ -368,7 +369,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // The new Dropdown menu
                     DropdownButtonFormField<String>(
                       value: selectedRowTag,
                       items: rowOptions.map((String value) {
@@ -392,7 +392,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
                         ),
                       ),
                     ),
-                    // This text field only appears if "Other" is selected
                     if (selectedRowTag == "Other")
                       Padding(
                         padding: const EdgeInsets.only(top: 10.0),
@@ -400,7 +399,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
                           autofocus: true,
                           decoration: InputDecoration(
                             labelText: "Custom Location",
-                            hintText: "e.g., North Field",
+                            hintText: "e.g., Row/Column 10",
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -426,10 +425,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    // Check if they chose "Other" but left it blank
                     if (selectedRowTag == "Other" &&
                         otherRowTag.trim().isEmpty) {
-                      // Don't close, show an error (or just do nothing)
                       return;
                     }
                     Navigator.pop(context, true);
@@ -455,15 +452,13 @@ class _RowDetailPageState extends State<RowDetailPage> {
       },
     );
 
-    if (confirm != true) return; // User pressed "Cancel"
+    if (confirm != true) return;
 
-    // Determine the final tag
     final String finalRowTag = (selectedRowTag == "Other")
         ? otherRowTag.trim()
         : selectedRowTag ?? "N/A";
 
     try {
-      // 🔹 MODIFIED: Call the new function to save both album name and tag
       await DatabaseHelper.instance.updateAlbumAndTag(
         'Current Scan',
         folderName,
@@ -496,7 +491,10 @@ class _RowDetailPageState extends State<RowDetailPage> {
       await DatabaseHelper.instance.deleteAlbum('Current Scan');
 
       if (mounted && updateState) {
-        setState(() => _results.clear());
+        setState(() {
+          _results.clear();
+          // --- Removed _exitSelectionMode() call ---
+        });
       } else if (!updateState) {
         _results.clear();
       }
@@ -505,7 +503,12 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
+  // --- All selection and delete functions have been removed ---
+
+  // 🔹 --- SIMPLIFIED _onWillPop --- 🔹
   Future<bool> _onWillPop() async {
+    // --- Check for selection mode has been removed ---
+
     if (_results.isNotEmpty) {
       final shouldExit = await showDialog<bool>(
         context: context,
@@ -538,12 +541,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                // 🔹 MODIFIED: We must call the save function
-                // but we can't pop(false) until it's done.
                 await _saveCurrentScan();
-                // If save was successful, _results will be empty,
-                // and the dialog won't show again.
-                // We pop(false) to just close the dialog.
                 if (mounted) Navigator.of(context).pop(false);
               },
               style: ElevatedButton.styleFrom(
@@ -587,9 +585,11 @@ class _RowDetailPageState extends State<RowDetailPage> {
     return true;
   }
 
-  // 🔹 --- MODIFIED WIDGET (Removed row tag display from here) --- 🔹
+  // 🔹 --- SIMPLIFIED _buildImageTile --- 🔹
   Widget _buildImageTile(DetectionResult res) {
     final fileOk = res.file.existsSync();
+    // --- isSelected variable removed ---
+
     final color = (res.label == 'Healthy')
         ? Colors.green.shade800
         : (res.label == null)
@@ -598,6 +598,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
 
     return GestureDetector(
       onTap: () {
+        // --- Logic for selection mode removed ---
+        // Now, tap ALWAYS opens the viewer page
         if (!fileOk) return;
         Navigator.push(
           context,
@@ -612,10 +614,9 @@ class _RowDetailPageState extends State<RowDetailPage> {
                   "${res.captureTime?.hour}:${res.captureTime?.minute.toString().padLeft(2, '0')}",
             ),
           ),
-          // We no longer need to .then() and refresh the state here,
-          // as the tag is added during save, not in the viewer.
         );
       },
+      // --- onLongPress handler removed ---
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4.0),
         child: Stack(
@@ -652,11 +653,37 @@ class _RowDetailPageState extends State<RowDetailPage> {
                 ),
               ),
 
-            // The row tag is removed from here because these images
-            // are in "Current Scan" and haven't been tagged yet.
+            // --- Selection overlay logic removed ---
           ],
         ),
       ),
+    );
+  }
+
+  // 🔹 --- SIMPLIFIED _buildAppBar --- 🔹
+  AppBar _buildAppBar() {
+    // --- Logic for selection mode app bar removed ---
+
+    // --- Standard AppBar ---
+    return AppBar(
+      backgroundColor: Colors.white,
+      title: Text(
+        widget.rowName,
+        style: GoogleFonts.poppins(
+          color: kDarkBrown,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      iconTheme: const IconThemeData(color: kDarkBrown),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.folder_open),
+          tooltip: 'Save as Album',
+          color: kDarkBrown,
+          onPressed: _saveCurrentScan,
+        ),
+        // --- Delete icon removed ---
+      ],
     );
   }
 
@@ -666,35 +693,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: const Color.fromARGB(243, 248, 248, 248),
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          title: Text(
-            widget.rowName,
-            style: GoogleFonts.poppins(
-              color: kDarkBrown,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          iconTheme: const IconThemeData(color: kDarkBrown),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Re-run analysis',
-              color: kDarkBrown,
-              onPressed: () async {
-                for (var r in _results) {
-                  await _runAnalysis(r);
-                }
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.folder_open),
-              tooltip: 'Save as Album',
-              color: kDarkBrown,
-              onPressed: _saveCurrentScan, // This now calls our new dialog
-            ),
-          ],
-        ),
+        appBar: _buildAppBar(),
         body: GridView.builder(
           padding: const EdgeInsets.only(
             left: 8,
@@ -710,8 +709,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
           itemCount: _results.length,
           itemBuilder: (_, i) => _buildImageTile(_results[i]),
         ),
-
-        // --- Floating Action Buttons (Unchanged) ---
+        // 🔹 --- SIMPLIFIED floatingActionButton --- 🔹
+        // --- Logic to hide FAB in selection mode removed ---
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(bottom: 16.0),
           child: SpeedDial(

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'album_detail.dart';
-import 'database_helper.dart'; // We need this to get the column name
+import 'database_helper.dart';
 
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
 const Color kOrange = Color(0xFFEAA944);
