@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:flutter/material.dart'; // 👈 Added for debugPrint
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
@@ -30,23 +31,23 @@ const Map<String, String> kLabelFriendly = {
 // ========================
 class DetectionResult {
   final File file;
+  final int? id; // 👈 This is important for database operations
   bool isLoading;
   String? label;
   double confidence;
   Duration? analysisDuration;
   DateTime? captureTime;
-
-  // 🔹 --- ADDED THIS LINE --- 🔹
   String? rowTag; // Holds the user-defined row (e.g., "Row 5")
 
   DetectionResult({
     required this.file,
+    this.id, // 👈 Added
     this.isLoading = false,
     this.label,
     this.confidence = 0.0,
     this.analysisDuration,
     this.captureTime,
-    this.rowTag, // 🔹 ADDED THIS LINE
+    this.rowTag,
   });
 
   Map<String, dynamic> toJson() => {
@@ -69,7 +70,8 @@ class DetectionResult {
 // GLOBALS
 // ========================
 Interpreter? globalInterpreter;
-TensorType? globalInputType;
+TensorType?
+globalInputType; // 👈 Corrected to match Interpreter.getInputTensor(0).type
 List<int>? globalInputShape;
 
 // ========================
@@ -78,24 +80,34 @@ List<int>? globalInputShape;
 String sha256FromBytes(Uint8List bytes) =>
     crypto.sha256.convert(bytes).toString();
 
-Future<void> loadModelFromAsset() async {
+// 🔹 --- RENAMED & UPDATED THIS FUNCTION --- 🔹
+// This is now called by main.dart on app startup
+Future<void> loadGlobalModel() async {
+  if (globalInterpreter != null) {
+    debugPrint("--- [GLOBAL LOAD] Model already loaded.");
+    return;
+  }
+
+  debugPrint("--- [GLOBAL LOAD] Attempting to load TFLite model...");
   try {
     globalInterpreter = await Interpreter.fromAsset(kModelAssetPath);
     final inTensor = globalInterpreter!.getInputTensor(0);
     globalInputType = inTensor.type;
     globalInputShape = inTensor.shape;
 
-    print('✅ Model loaded: $kModelAssetPath');
-    print('Input shape: $globalInputShape | type: $globalInputType');
+    debugPrint('--- [GLOBAL LOAD] ✅ Model loaded: $kModelAssetPath');
+    debugPrint(
+      '--- [GLOBAL LOAD] Input shape: $globalInputShape | type: $globalInputType',
+    );
 
     final modelData = (await rootBundle.load(
       kModelAssetPath,
     )).buffer.asUint8List();
     final modelHash = sha256FromBytes(modelData);
-    print('Model SHA256: $modelHash');
+    debugPrint('--- [GLOBAL LOAD] Model SHA256: $modelHash');
   } catch (e) {
-    print('❌ Error loading model: $e');
-    rethrow;
+    debugPrint('--- [GLOBAL LOAD] ❌ Error loading model: $e');
+    rethrow; // Let main.dart know something went wrong if we want to handle it
   }
 }
 

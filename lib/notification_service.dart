@@ -1,23 +1,55 @@
-// lib/notification.dart
+// lib/notification_service.dart
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+// ... (your const AndroidNotificationChannel 'channel' code is correct) ...
+const AndroidNotificationChannel channel = AndroidNotificationChannel(
+  'spotato_channel', // id
+  'SPOTATO Notifications', // name
+  description: 'Notifications for SPOTATO analysis updates', // description
+  importance: Importance.max,
+  playSound: true,
+  enableVibration: true,
+);
 
 class NotificationService {
   static final _notifications = FlutterLocalNotificationsPlugin();
 
+  // 🔹 --- THIS FUNCTION IS UPDATED --- 🔹
   static Future<void> init() async {
-    // Android initialization
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    // 🔹 --- THIS IS THE FIX --- 🔹
+    // Instead of the default '@mipmap/ic_launcher', we will use the
+    // notification icon that we know exists in the 'drawable' folder.
+    const androidInit = AndroidInitializationSettings(
+      '@drawable/ic_stat_spotato',
+    );
+    // 🔹 --- END OF FIX --- 🔹
+
     const initSettings = InitializationSettings(android: androidInit);
 
-    await _notifications.initialize(initSettings);
+    try {
+      await _notifications.initialize(initSettings);
+    } catch (e) {
+      debugPrint("!!! FAILED to initialize notifications: $e");
+    }
 
-    // ✅ Ask for notification permission (Android 13+)
+    // This tells Android to register our channel.
+    final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
+  }
+
+  // This is the function that main.dart calls
+  static Future<void> requestPermission() async {
     final status = await Permission.notification.request();
     if (status.isDenied) {
-      print("⚠️ Notification permission denied by user.");
+      debugPrint("⚠️ Notification permission denied by user.");
     } else {
-      print("✅ Notification permission granted.");
+      debugPrint("✅ Notification permission granted.");
     }
   }
 
@@ -25,17 +57,18 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
-    const androidDetails = AndroidNotificationDetails(
-      'spotato_channel', // Channel ID
-      'SPOTATO Notifications', // Channel name
-      channelDescription: 'Notifications for SPOTATO analysis updates',
-      importance: Importance.max,
+    final androidDetails = AndroidNotificationDetails(
+      channel.id,
+      channel.name,
+      channelDescription: channel.description,
+      importance: channel.importance,
       priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
+      playSound: channel.playSound,
+      enableVibration: channel.enableVibration,
+      icon: 'ic_stat_spotato', // This is the small icon in the status bar
     );
 
-    const details = NotificationDetails(android: androidDetails);
+    final details = NotificationDetails(android: androidDetails);
 
     await _notifications.show(
       0, // Notification ID
