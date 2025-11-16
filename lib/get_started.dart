@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'home_page.dart';
 
@@ -145,7 +144,8 @@ class _GetStartedPageState extends State<GetStartedPage>
                     children: [
                       Text(
                         'SPOT',
-                        style: GoogleFonts.poppins(
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
                           fontSize: 40,
                           fontWeight: FontWeight.w800,
                           color: const Color.fromARGB(255, 128, 68, 12),
@@ -153,7 +153,8 @@ class _GetStartedPageState extends State<GetStartedPage>
                       ),
                       Text(
                         'ato',
-                        style: GoogleFonts.poppins(
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
                           fontSize: 40,
                           fontWeight: FontWeight.w800,
                           color: const Color.fromARGB(255, 236, 185, 74),
@@ -165,7 +166,8 @@ class _GetStartedPageState extends State<GetStartedPage>
                     padding: const EdgeInsets.only(right: 10.0, top: 10.0),
                     child: Text(
                       'Hello, farmer! SPOTato is ready to guard your potatoes with smart drone-powered detection.',
-                      style: GoogleFonts.poppins(
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
                         fontSize: 20,
                         fontWeight: FontWeight.w400,
                         color: const Color.fromARGB(255, 128, 68, 12),
@@ -200,7 +202,8 @@ class _GetStartedPageState extends State<GetStartedPage>
                                 const Color.fromARGB(115, 0, 0, 0),
                               ),
                               textStyle: WidgetStateProperty.all<TextStyle>(
-                                GoogleFonts.poppins(
+                                TextStyle(
+                                  fontFamily: 'Poppins',
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
                                 ),

@@ -81,7 +81,8 @@ class _AlbumDetailState extends State<AlbumDetail> {
           ),
         );
       },
-      child: ClipRRect( // Added ClipRRect for consistent border radius
+      child: ClipRRect(
+        // Added ClipRRect for consistent border radius
         borderRadius: BorderRadius.circular(4.0), // Consistent with row_detail
         child: Stack(
           fit: StackFit.expand,
@@ -106,15 +107,21 @@ class _AlbumDetailState extends State<AlbumDetail> {
                 left: 0,
                 right: 0,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2), // Smaller padding
-                  color: color.withOpacity(0.8), // Semi-transparent colored background
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ), // Smaller padding
+                  color: color.withOpacity(
+                    0.8,
+                  ), // Semi-transparent colored background
                   child: Text(
                     res.label!, // Display the full label
                     textAlign: TextAlign.center,
                     maxLines: 1, // Ensure it stays on one line
-                    overflow: TextOverflow.ellipsis, // Add '...' if it's too long
-                    style: GoogleFonts.poppins( // Using Poppins for consistency
+                    overflow:
+                        TextOverflow.ellipsis, // Add '...' if it's too long
+                    style: GoogleFonts.poppins(
+                      // Using Poppins for consistency
                       color: Colors.white,
                       fontSize: 10, // Smaller font size for full text
                       fontWeight: FontWeight.bold,
@@ -135,8 +142,9 @@ class _AlbumDetailState extends State<AlbumDetail> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         title: Text(
-          widget.albumName.replaceFirst("Scan_", "").replaceAll("_", " "),
-          style: GoogleFonts.poppins(
+          widget.albumName,
+          style: TextStyle(
+            fontFamily: 'Poppins', // Use the family name from pubspec.yaml
             color: kDarkBrown,
             fontWeight: FontWeight.bold,
           ),
@@ -146,25 +154,25 @@ class _AlbumDetailState extends State<AlbumDetail> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _results.isEmpty
-              ? Center(
-                  child: Text(
-                    "No images found in this album.",
-                    style: GoogleFonts.poppins(
-                      color: Colors.grey[600],
-                      fontSize: 16,
-                    ),
-                  ),
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.all(10),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 6,
-                    crossAxisSpacing: 6,
-                  ),
-                  itemCount: _results.length,
-                  itemBuilder: (_, i) => _buildImageTile(_results[i]),
+          ? Center(
+              child: Text(
+                "No images found in this album.",
+                style: GoogleFonts.poppins(
+                  color: Colors.grey[600],
+                  fontSize: 16,
                 ),
+              ),
+            )
+          : GridView.builder(
+              padding: const EdgeInsets.all(10),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+              ),
+              itemCount: _results.length,
+              itemBuilder: (_, i) => _buildImageTile(_results[i]),
+            ),
     );
   }
 }

@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'config.dart'; // Make sure this file is correctly imported
 
@@ -76,7 +75,8 @@ class AnalysisViewerPage extends StatelessWidget {
         children: [
           Text(
             label,
-            style: GoogleFonts.lato(
+            style: TextStyle(
+              fontFamily: 'Poppins',
               fontSize: 16,
               color: isHighlighted ? kDarkBrown : Colors.black87,
               fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
@@ -86,7 +86,8 @@ class AnalysisViewerPage extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: GoogleFonts.lato(
+              style: TextStyle(
+                fontFamily: 'Poppins',
                 fontSize: 16,
                 color: kDarkBrown,
                 fontWeight: FontWeight.w600,
@@ -175,7 +176,8 @@ class AnalysisViewerPage extends StatelessWidget {
               ),
               title: Text(
                 'Analysis Viewer',
-                style: GoogleFonts.poppins(
+                style: TextStyle(
+                  fontFamily: 'Poppins',
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                   shadows: const [Shadow(blurRadius: 2, color: Colors.black)],
@@ -235,7 +237,8 @@ class AnalysisViewerPage extends StatelessWidget {
                         children: [
                           Text(
                             status.title,
-                            style: GoogleFonts.poppins(
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: status.color,
@@ -244,7 +247,8 @@ class AnalysisViewerPage extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             status.subtitle,
-                            style: GoogleFonts.lato(
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
                               fontSize: 15,
                               color: status.color.withOpacity(0.9),
                             ),
@@ -268,7 +272,8 @@ class AnalysisViewerPage extends StatelessWidget {
                         children: [
                           Text(
                             "Analysis Details",
-                            style: GoogleFonts.poppins(
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
                               color: kDarkBrown,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:spotato/album_page.dart';
@@ -96,7 +95,8 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 4),
             Text(
               label,
-              style: GoogleFonts.poppins(
+              style: TextStyle(
+                fontFamily: 'Poppins',
                 color: color,
                 fontSize: screenWidth * 0.03,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -146,7 +146,8 @@ class _HomePageState extends State<HomePage> {
                             children: [
                               RichText(
                                 text: TextSpan(
-                                  style: GoogleFonts.poppins(
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
                                     fontSize: 25,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -173,7 +174,8 @@ class _HomePageState extends State<HomePage> {
                               ),
                               Text(
                                 "at your service!",
-                                style: GoogleFonts.poppins(
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
                                   color: const Color.fromARGB(255, 160, 98, 45),
                                   fontSize: 15,
                                 ),
@@ -215,7 +217,8 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Text(
                     "Recent Picture",
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: const Color.fromARGB(255, 128, 68, 12),
@@ -275,7 +278,8 @@ class _HomePageState extends State<HomePage> {
                               Text(
                                 "No recent images have been added yet.",
                                 textAlign: TextAlign.center,
-                                style: GoogleFonts.poppins(
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
                                   color: Colors.grey[600],
                                 ),
                               ),
@@ -301,7 +305,8 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 child: Text(
                                   "Detect Disease",
-                                  style: GoogleFonts.poppins(
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -391,7 +396,8 @@ class _HomePageState extends State<HomePage> {
                               ),
                               child: Text(
                                 "Detect Disease",
-                                style: GoogleFonts.poppins(
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),

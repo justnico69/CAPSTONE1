@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'album_detail.dart';
 import 'database_helper.dart';
@@ -62,6 +61,7 @@ class _AlbumsPageState extends State<AlbumsPage> {
       await DatabaseHelper.instance.deleteAlbum(albumName);
     }
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Deleted ${_selectedAlbums.length} album(s)')),
     );
@@ -101,189 +101,184 @@ class _AlbumsPageState extends State<AlbumsPage> {
     });
   }
 
+  // 🔹 --- THIS IS THE CORRECTED BUILD METHOD --- 🔹
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color.fromARGB(243, 248, 248, 248),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _albumsFuture,
-        builder: (context, snapshot) {
-          final allAlbums = snapshot.data ?? [];
-          final allAlbumNames = allAlbums
-              .map((a) => a['albumName'] as String)
-              .toList();
+    // 1. The FutureBuilder is the ROOT widget.
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _albumsFuture,
+      builder: (context, snapshot) {
+        // 2. Get the data from the snapshot.
+        final allAlbums = snapshot.data ?? [];
+        final allAlbumNames = allAlbums
+            .map((a) => a['albumName'] as String)
+            .toList();
 
-          return Scaffold(
-            appBar: AppBar(
-              backgroundColor: Colors.white,
-              leading: _selectionMode
-                  ? IconButton(
-                      icon: const Icon(Icons.close, color: kDarkBrown),
-                      onPressed: _exitSelection,
-                    )
-                  : null,
-              title: Text(
-                _selectionMode
-                    ? "${_selectedAlbums.length} selected"
-                    : "Saved Albums",
-                style: GoogleFonts.poppins(
-                  color: kDarkBrown,
-                  fontWeight: FontWeight.bold,
-                ),
+        // 3. NOW we build the Scaffold, so the AppBar can use the data.
+        return Scaffold(
+          // 4. This is the SINGLE background color.
+          backgroundColor: const Color.fromARGB(243, 248, 248, 248),
+
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            leading: _selectionMode
+                ? IconButton(
+                    icon: const Icon(Icons.close, color: kDarkBrown),
+                    onPressed: _exitSelection,
+                  )
+                : null,
+            title: Text(
+              _selectionMode
+                  ? "${_selectedAlbums.length} selected"
+                  : "Saved Albums",
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: kDarkBrown,
+                fontWeight: FontWeight.bold,
               ),
-              actions: [
-                if (_selectionMode && allAlbums.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.select_all, color: kDarkBrown),
-                    tooltip: "Select All",
-                    onPressed: () => _selectAll(allAlbumNames),
-                  ),
-                if (_selectionMode && _selectedAlbums.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    tooltip: "Delete Selected",
-                    onPressed: () => _deleteSelected(allAlbumNames),
-                  ),
-              ],
             ),
-            body: () {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(color: kOrange),
-                );
-              }
+            // 5. The actions are now built correctly with the data.
+            actions: [
+              if (_selectionMode && allAlbums.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.select_all, color: kDarkBrown),
+                  tooltip: "Select All",
+                  onPressed: () => _selectAll(allAlbumNames),
+                ),
+              if (_selectionMode && _selectedAlbums.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  tooltip: "Delete Selected",
+                  onPressed: () => _deleteSelected(allAlbumNames),
+                ),
+            ],
+          ),
 
-              if (snapshot.hasError) {
-                return const Center(child: Text("Error loading albums."));
-              }
+          // 6. The body is built using the snapshot state.
+          body: () {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: kOrange),
+              );
+            }
 
-              if (allAlbums.isEmpty) {
-                return Center(
-                  child: Text(
-                    "No saved albums. Go take some photos!",
-                    style: GoogleFonts.poppins(
-                      color: Colors.grey[600],
-                      fontSize: 16,
+            if (snapshot.hasError) {
+              return const Center(child: Text("Error loading albums."));
+            }
+
+            if (allAlbums.isEmpty) {
+              return Center(
+                child: Text(
+                  "No saved albums. Go take some photos!",
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: Colors.grey[600],
+                    fontSize: 16,
+                  ),
+                ),
+              );
+            }
+
+            // 7. This is the main content (the list)
+            return ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: allAlbums.length,
+              itemBuilder: (context, index) {
+                final album = allAlbums[index];
+                final albumName = album['albumName'] as String;
+                final imageCount = album['imageCount'] as int;
+                final latestDate = album['latestImageTime'] as String;
+                final isSelected = _selectedAlbums.contains(albumName);
+
+                final rowTag = album[DatabaseHelper.columnRowTag] as String?;
+
+                final String subtitleText = [
+                  if (rowTag != null && rowTag.isNotEmpty) rowTag,
+                  "$imageCount image(s)",
+                  "Last added: ${_formatDate(latestDate)}",
+                ].join(" • ");
+
+                return GestureDetector(
+                  onLongPress: () {
+                    setState(() {
+                      _selectionMode = true;
+                      _selectedAlbums.add(albumName);
+                    });
+                  },
+                  onTap: () {
+                    if (_selectionMode) {
+                      _toggleSelection(albumName);
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              AlbumDetail(albumName: albumName),
+                        ),
+                      ).then(
+                        (_) => _loadAlbums(),
+                      ); // Refresh list when returning
+                    }
+                  },
+                  child: Card(
+                    elevation: 4,
+                    color: isSelected
+                        ? Colors.grey[300] // Using the grey highlight
+                        : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const Icon(Icons.folder, color: kOrange, size: 40),
+                          if (isSelected)
+                            const Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 20,
+                              ),
+                            ),
+                        ],
+                      ),
+                      title: Text(
+                        albumName
+                            .replaceFirst("Scan_", "")
+                            .replaceAll("_", " "),
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontWeight: FontWeight.bold,
+                          color: kDarkBrown,
+                        ),
+                      ),
+                      subtitle: Text(
+                        subtitleText,
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      trailing: _selectionMode
+                          ? Checkbox(
+                              value: isSelected,
+                              onChanged: (_) => _toggleSelection(albumName),
+                              activeColor: kOrange,
+                            )
+                          : const Icon(Icons.arrow_forward_ios, size: 18),
                     ),
                   ),
                 );
-              }
-
-              // 4. IF DATA EXISTS
-              return ListView.builder(
-                padding: const EdgeInsets.all(16.0),
-                itemCount: allAlbums.length,
-                itemBuilder: (context, index) {
-                  final album = allAlbums[index];
-                  final albumName = album['albumName'] as String;
-                  final imageCount = album['imageCount'] as int;
-                  final latestDate = album['latestImageTime'] as String;
-                  final isSelected = _selectedAlbums.contains(albumName);
-
-                  // 🔹 --- DEBUGGING PRINT --- 🔹
-                  debugPrint(
-                    "--- [AlbumPage] Building tile for: $albumName ---",
-                  );
-                  debugPrint(
-                    "  - Fetched rowTag from DB: ${album[DatabaseHelper.columnRowTag]}",
-                  );
-                  // -----------------------------
-
-                  // 1. Get the rowTag (it might be null, so it's String?)
-                  final rowTag = album[DatabaseHelper.columnRowTag] as String?;
-
-                  // 2. Build the subtitle string dynamically
-                  final String subtitleText = [
-                    // Only add the row tag if it exists and is not empty
-                    if (rowTag != null && rowTag.isNotEmpty) rowTag,
-                    "$imageCount image(s)",
-                    "Last added: ${_formatDate(latestDate)}",
-                  ].join(" • "); // Join with a "•" separator
-
-                  // 🔹 --- END OF NEW LOGIC --- 🔹
-
-                  return GestureDetector(
-                    onLongPress: () {
-                      setState(() {
-                        _selectionMode = true;
-                        _selectedAlbums.add(albumName);
-                      });
-                    },
-                    onTap: () {
-                      if (_selectionMode) {
-                        _toggleSelection(albumName);
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                AlbumDetail(albumName: albumName),
-                          ),
-                        ).then(
-                          (_) => _loadAlbums(),
-                        ); // Refresh list when returning
-                      }
-                    },
-                    child: Card(
-                      elevation: 4,
-                      color: isSelected
-                          ? const Color(0xFFFFF3E0)
-                          : Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        leading: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            const Icon(Icons.folder, color: kOrange, size: 40),
-                            if (isSelected)
-                              const Positioned(
-                                right: 0,
-                                top: 0,
-                                child: Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 20,
-                                ),
-                              ),
-                          ],
-                        ),
-                        title: Text(
-                          albumName
-                              .replaceFirst("Scan_", "")
-                              .replaceAll("_", " "),
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.bold,
-                            color: kDarkBrown,
-                          ),
-                        ),
-
-                        // 🔹 --- UPDATED SUBTITLE --- 🔹
-                        subtitle: Text(
-                          subtitleText, // Use our new dynamic subtitle text
-                          style: GoogleFonts.poppins(fontSize: 13),
-                          overflow:
-                              TextOverflow.ellipsis, // Add '...' if too long
-                        ),
-
-                        trailing: _selectionMode
-                            ? Checkbox(
-                                value: isSelected,
-                                onChanged: (_) => _toggleSelection(albumName),
-                                activeColor: kOrange,
-                              )
-                            : const Icon(Icons.arrow_forward_ios, size: 18),
-                      ),
-                    ),
-                  );
-                },
-              );
-            }(),
-          );
-        },
-      ),
+              },
+            );
+          }(),
+        );
+      },
     );
   }
 }

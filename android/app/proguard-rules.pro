@@ -20,3 +20,9 @@
 -keepattributes *Annotation*
 -keepattributes InnerClasses
 -keepattributes EnclosingMethod
+
+# Keep this class for flutter_local_notifications
+-keep class com.dexterous.flutterlocalnotifications.** { *; }
+
+# Keep all Flutter plugin-related classes (a good general rule)
+-keep class io.flutter.plugins.** { *; }

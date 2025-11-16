@@ -1,7 +1,6 @@
 import 'dart:async'; // Required for Future.delayed
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // <-- ADDED
 
 import 'get_started.dart';
@@ -87,7 +86,8 @@ class _LandingPageState extends State<LandingPage> {
                       children: [
                         Text(
                           'SPOT',
-                          style: GoogleFonts.poppins(
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
                             fontSize: 30,
                             fontWeight: FontWeight.w800,
                             color: const Color.fromARGB(255, 128, 68, 12),
@@ -95,7 +95,8 @@ class _LandingPageState extends State<LandingPage> {
                         ),
                         Text(
                           'ato',
-                          style: GoogleFonts.poppins(
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
                             fontSize: 30,
                             fontWeight: FontWeight.w800,
                             color: const Color.fromARGB(255, 236, 185, 74),

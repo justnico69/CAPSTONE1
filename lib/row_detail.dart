@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
-import 'package:google_fonts/google_fonts.dart';
+// import 'package:google_fonts/google_fonts.dart'; // No longer needed
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:spotato/image_handler.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
+
+// import 'package:tflite_flutter/tflite_flutter.dart'; // No longer needed here
 
 import 'analysis.dart';
 import 'analysis_viewer_page.dart';
-import 'config.dart';
+import 'config.dart'; // 👈 Import config
 import 'database_helper.dart';
 import 'notification_service.dart';
 
@@ -33,41 +34,81 @@ class RowDetailPage extends StatefulWidget {
   _RowDetailPageState createState() => _RowDetailPageState();
 }
 
-class _RowDetailPageState extends State<RowDetailPage> {
+// 🔹 --- 1. ADD 'WidgetsBindingObserver' --- 🔹
+// This lets us "watch" for when the app is paused or resumed.
+class _RowDetailPageState extends State<RowDetailPage>
+    with WidgetsBindingObserver {
   List<DetectionResult> _results = [];
   String _telloPackage = "";
-  bool _modelLoaded = false;
   late DateTime _lastImportTimestamp;
-
-  // --- Selection and Delete variables have been removed ---
 
   @override
   void initState() {
     super.initState();
     _telloPackage = widget.telloPackage;
-    NotificationService.init();
-
     _lastImportTimestamp = DateTime.now().toUtc();
-    debugPrint("--- PAGE LOADED ---");
-    debugPrint(
-      "Initial timestamp set (UTC): ${_lastImportTimestamp.toIso8601String()}",
-    );
 
+    // 🔹 --- 2. REGISTER THE OBSERVER --- 🔹
+    // This tells Flutter we want to know about lifecycle changes.
+    WidgetsBinding.instance.addObserver(this);
+
+    // 1. Request permission (this is fast and safe to call)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestNotificationPermission();
+    });
+
+    // 2. Run the simple init tasks (this still only runs once)
     _init();
   }
 
-  Future<void> _init() async {
-    await _loadModel();
-    await _loadImages();
+  // 🔹 --- 3. ADD THE 'dispose' METHOD --- 🔹
+  // This cleans up the observer when the page is closed.
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // 🔹 --- 4. ADD THE 'didChangeAppLifecycleState' METHOD --- 🔹
+  // This is the magic! This function is called every time
+  // the user leaves the app or comes back to it.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Check if the state is "resumed"
+    if (state == AppLifecycleState.resumed) {
+      // The user just came back to the app (e.g., from the Tello app)
+      debugPrint("--- APP RESUMED --- Running Tello import check.");
+
+      // Automatically run the import function
+      _importFromTelloFolder();
+    }
+  }
+
+  // New, simple permission request function
+  Future<void> _requestNotificationPermission() async {
+    await NotificationService.requestPermission();
+  }
+
+  // 🔹 --- 5. MODIFIED _init() --- 🔹
+  // We REMOVED the auto-import from here, because it will
+  // now be handled by 'didChangeAppLifecycleState'
+  void _init() {
+    _loadImages(); // Just load the images from DB
 
     if (_results.isNotEmpty) {
       debugPrint(
         "Clearing ${_results.length} leftover images from previous session.",
       );
-      await _clearCurrentScan(updateState: false);
+      _clearCurrentScan(updateState: false);
     }
 
-    if (_telloPackage.isEmpty) _checkTelloApp();
+    if (_telloPackage.isEmpty) {
+      _checkTelloApp();
+    }
+
+    // The _importFromTelloFolder() call was removed from here.
   }
 
   Future<void> _checkTelloApp() async {
@@ -82,22 +123,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
     } catch (_) {}
   }
 
-  Future<void> _loadModel() async {
-    if (_modelLoaded || globalInterpreter != null) {
-      setState(() => _modelLoaded = true);
-      return;
-    }
-    try {
-      globalInterpreter = await Interpreter.fromAsset(kModelAssetPath);
-      final inT = globalInterpreter!.getInputTensor(0);
-      globalInputType = inT.type;
-      globalInputShape = inT.shape;
-      if (mounted) setState(() => _modelLoaded = true);
-    } catch (e) {
-      debugPrint('Model load error: $e');
-    }
-  }
-
   Future<void> _loadImages() async {
     final loadedResults = await DatabaseHelper.instance.getAnalysesForAlbum(
       'Current Scan',
@@ -106,55 +131,75 @@ class _RowDetailPageState extends State<RowDetailPage> {
     setState(() => _results = loadedResults);
   }
 
-  // 🔹 --- THIS FUNCTION HAS THE NEW NOTIFICATION LOGIC --- 🔹
   Future<void> _pickFromGallery() async {
-    var status = await Permission.photos.status;
-    if (status.isDenied) {
-      status = await Permission.photos.request();
-    }
+    try {
+      debugPrint("Checking photos permission...");
+      var status = await Permission.photos.status;
 
-    if (status.isPermanentlyDenied) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Photo access denied. Please enable in settings.'),
-          ),
-        );
-        await openAppSettings();
+      if (status.isDenied) {
+        debugPrint("Photos permission is denied. Requesting...");
+        status = await Permission.photos.request();
       }
-      return;
-    }
 
-    if (status.isGranted) {
-      final sourceFile = await ImageHandler.pickFromGallery();
-      if (sourceFile == null) return;
-
-      final compressedFile = await ImageHandler.compressImage(sourceFile);
-      if (compressedFile == null) {
+      if (status.isPermanentlyDenied) {
+        debugPrint("Photos permission permanently denied.");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to process image.')),
+            const SnackBar(
+              content: Text('Photo access denied. Please enable in settings.'),
+            ),
           );
+          await openAppSettings();
         }
         return;
       }
 
-      final newResult = DetectionResult(
-        file: compressedFile,
-        captureTime: await compressedFile.lastModified(),
-      );
+      if (status.isGranted) {
+        debugPrint("Photos permission granted. Opening gallery.");
+        final sourceFile = await ImageHandler.pickFromGallery();
+        if (sourceFile == null) return;
 
-      // Analysis is run here
-      await _runAnalysis(newResult);
+        final compressedFile = await ImageHandler.compressImage(sourceFile);
+        if (compressedFile == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to process image.')),
+            );
+          }
+          return;
+        }
 
-      if (mounted) setState(() => _results.add(newResult));
+        final newResult = DetectionResult(
+          file: compressedFile,
+          captureTime: await compressedFile.lastModified(),
+        );
 
-      // 🔹 --- MODIFIED NOTIFICATION --- 🔹
-      await NotificationService.show(
-        title: "SPOTATO",
-        body: "Analysis complete: ${newResult.label ?? 'Unknown'}",
-      );
-      // 🔹 --- END OF MODIFICATION --- 🔹
+        await _runAnalysis(newResult);
+        if (mounted) setState(() => _results.add(newResult));
+
+        await NotificationService.show(
+          title: "SPOTATO",
+          body: "Analysis complete: ${newResult.label ?? 'Unknown'}",
+        );
+      } else {
+        debugPrint("Photos permission was not granted.");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Photo access is required to add from gallery.'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Failed to pick image: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to get image. Check permissions.'),
+          ),
+        );
+      }
     }
   }
 
@@ -183,7 +228,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Fly your drone, take photos, then return here and tap "Import Tello Photos".',
+            'Fly your drone, take photos, then return here. New photos will be imported automatically.', // 👈 Updated text
           ),
           duration: Duration(seconds: 6),
         ),
@@ -191,9 +236,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  // 🔹 --- THIS FUNCTION HAS THE NEW NOTIFICATION LOGIC --- 🔹
   Future<void> _importFromTelloFolder() async {
-    debugPrint("--- IMPORT TELLO PHOTOS TAPPED ---");
+    debugPrint("--- AUTO-IMPORT TELLO PHOTOS RUNNING ---");
 
     var status = await Permission.manageExternalStorage.status;
     debugPrint(
@@ -231,9 +275,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
 
     if (status.isGranted) {
       debugPrint("3. ✅ Permission is GRANTED.");
-
       final importCheckTime = DateTime.now().toUtc();
-
       debugPrint(
         "4. Calling ImageHandler. Checking for files modified AFTER (UTC): ${_lastImportTimestamp.toIso8601String()}",
       );
@@ -250,9 +292,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
 
       if (sourceFiles.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No *new* Tello photos found.')),
-          );
+          debugPrint("No new Tello photos found.");
         }
         return;
       }
@@ -265,16 +305,13 @@ class _RowDetailPageState extends State<RowDetailPage> {
             captureTime: await compressedFile.lastModified(),
           );
 
-          // Analysis is run here
           await _runAnalysis(newRes);
           if (mounted) setState(() => _results.add(newRes));
 
-          // 🔹 --- MODIFIED NOTIFICATION (MOVED INSIDE LOOP) --- 🔹
           await NotificationService.show(
             title: "SPOTATO Analysis",
             body: "New Tello image analyzed: ${newRes.label ?? 'Unknown'}",
           );
-          // 🔹 --- END OF MODIFICATION --- 🔹
         }
       }
     } else {
@@ -292,6 +329,16 @@ class _RowDetailPageState extends State<RowDetailPage> {
   }
 
   Future<void> _runAnalysis(DetectionResult res) async {
+    if (globalInterpreter == null) {
+      debugPrint("!!! [RUN ANALYSIS] Model not loaded, analysis skipped.");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: AI Model is not loaded.')),
+        );
+      }
+      return;
+    }
+
     if (!mounted) return;
     setState(() => res.isLoading = true);
     await runModelAnalysis(res);
@@ -333,7 +380,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
               ),
               title: Text(
                 'Save Scan',
-                style: GoogleFonts.poppins(
+                style: TextStyle(
+                  fontFamily: 'Poppins',
                   color: Colors.brown,
                   fontWeight: FontWeight.w800,
                   fontSize: 18,
@@ -346,7 +394,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
                   children: [
                     Text(
                       'This will save ${_results.length} images to a new album:',
-                      style: GoogleFonts.poppins(
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
                         color: Colors.black87,
                         fontSize: 14,
                       ),
@@ -354,7 +403,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
                     const SizedBox(height: 8),
                     Text(
                       '"$folderName"',
-                      style: GoogleFonts.poppins(
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
                         color: Colors.black,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
@@ -363,7 +413,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
                     const SizedBox(height: 20),
                     Text(
                       'Please select the Row/Location for this scan:',
-                      style: GoogleFonts.poppins(
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
                         color: Colors.black87,
                         fontSize: 14,
                       ),
@@ -399,7 +450,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
                           autofocus: true,
                           decoration: InputDecoration(
                             labelText: "Custom Location",
-                            hintText: "e.g., Row/Column 10",
+                            hintText: "e.g., North Field",
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -417,7 +468,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
                   onPressed: () => Navigator.pop(context, false),
                   child: Text(
                     'Cancel',
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
                       color: Colors.brown,
                       fontWeight: FontWeight.w500,
                     ),
@@ -439,7 +491,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
                   ),
                   child: Text(
                     'Save',
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
                       color: Colors.white,
                       fontWeight: FontWeight.w500,
                     ),
@@ -493,7 +546,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
       if (mounted && updateState) {
         setState(() {
           _results.clear();
-          // --- Removed _exitSelectionMode() call ---
         });
       } else if (!updateState) {
         _results.clear();
@@ -503,12 +555,7 @@ class _RowDetailPageState extends State<RowDetailPage> {
     }
   }
 
-  // --- All selection and delete functions have been removed ---
-
-  // 🔹 --- SIMPLIFIED _onWillPop --- 🔹
   Future<bool> _onWillPop() async {
-    // --- Check for selection mode has been removed ---
-
     if (_results.isNotEmpty) {
       final shouldExit = await showDialog<bool>(
         context: context,
@@ -518,7 +565,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
           ),
           title: Text(
             'Unsaved Work',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
+              fontFamily: 'Poppins',
               color: Colors.brown,
               fontWeight: FontWeight.w800,
               fontSize: 18,
@@ -526,14 +574,19 @@ class _RowDetailPageState extends State<RowDetailPage> {
           ),
           content: Text(
             'You have unsaved images. Would you like to save before exiting?',
-            style: GoogleFonts.poppins(color: Colors.black87, fontSize: 14),
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              color: Colors.black87,
+              fontSize: 14,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: Text(
                 'Cancel',
-                style: GoogleFonts.poppins(
+                style: TextStyle(
+                  fontFamily: 'Poppins',
                   color: Colors.brown,
                   fontWeight: FontWeight.w500,
                 ),
@@ -552,7 +605,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
               ),
               child: Text(
                 'Save First',
-                style: GoogleFonts.poppins(
+                style: TextStyle(
+                  fontFamily: 'Poppins',
                   color: Colors.white,
                   fontWeight: FontWeight.w500,
                 ),
@@ -571,7 +625,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
               ),
               child: Text(
                 'Exit Anyway',
-                style: GoogleFonts.poppins(
+                style: TextStyle(
+                  fontFamily: 'Poppins',
                   color: Colors.white,
                   fontWeight: FontWeight.w500,
                 ),
@@ -585,11 +640,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
     return true;
   }
 
-  // 🔹 --- SIMPLIFIED _buildImageTile --- 🔹
   Widget _buildImageTile(DetectionResult res) {
     final fileOk = res.file.existsSync();
-    // --- isSelected variable removed ---
-
     final color = (res.label == 'Healthy')
         ? Colors.green.shade800
         : (res.label == null)
@@ -598,8 +650,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
 
     return GestureDetector(
       onTap: () {
-        // --- Logic for selection mode removed ---
-        // Now, tap ALWAYS opens the viewer page
         if (!fileOk) return;
         Navigator.push(
           context,
@@ -616,18 +666,14 @@ class _RowDetailPageState extends State<RowDetailPage> {
           ),
         );
       },
-      // --- onLongPress handler removed ---
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4.0),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // --- The Image ---
             fileOk
                 ? Image.file(res.file, fit: BoxFit.cover)
                 : Container(color: Colors.black),
-
-            // --- Full Text Label at the Bottom ---
             if (res.label != null)
               Positioned(
                 bottom: 0,
@@ -644,7 +690,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
                       color: Colors.white,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -652,24 +699,19 @@ class _RowDetailPageState extends State<RowDetailPage> {
                   ),
                 ),
               ),
-
-            // --- Selection overlay logic removed ---
           ],
         ),
       ),
     );
   }
 
-  // 🔹 --- SIMPLIFIED _buildAppBar --- 🔹
   AppBar _buildAppBar() {
-    // --- Logic for selection mode app bar removed ---
-
-    // --- Standard AppBar ---
     return AppBar(
       backgroundColor: Colors.white,
       title: Text(
         widget.rowName,
-        style: GoogleFonts.poppins(
+        style: TextStyle(
+          fontFamily: 'Poppins',
           color: kDarkBrown,
           fontWeight: FontWeight.bold,
         ),
@@ -682,7 +724,6 @@ class _RowDetailPageState extends State<RowDetailPage> {
           color: kDarkBrown,
           onPressed: _saveCurrentScan,
         ),
-        // --- Delete icon removed ---
       ],
     );
   }
@@ -709,8 +750,8 @@ class _RowDetailPageState extends State<RowDetailPage> {
           itemCount: _results.length,
           itemBuilder: (_, i) => _buildImageTile(_results[i]),
         ),
-        // 🔹 --- SIMPLIFIED floatingActionButton --- 🔹
-        // --- Logic to hide FAB in selection mode removed ---
+
+        // 🔹 --- 6. REMOVED THE BUTTON --- 🔹
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(bottom: 16.0),
           child: SpeedDial(
@@ -729,21 +770,25 @@ class _RowDetailPageState extends State<RowDetailPage> {
                 ),
                 backgroundColor: kDarkBrown,
                 label: 'Launch Tello',
-                labelStyle: GoogleFonts.poppins(),
+                labelStyle: TextStyle(fontFamily: 'Poppins'),
                 onTap: _launchTelloApp,
               ),
-              SpeedDialChild(
-                child: const Icon(Icons.download, color: Colors.white),
-                backgroundColor: kDarkBrown.withOpacity(0.85),
-                label: 'Import Tello Photos',
-                labelStyle: GoogleFonts.poppins(),
-                onTap: _importFromTelloFolder,
-              ),
+              //
+              // 🔹 --- THIS BUTTON IS GONE --- 🔹
+              //
+              // SpeedDialChild(
+              //   child: const Icon(Icons.download, color: Colors.white),
+              //   backgroundColor: kDarkBrown.withOpacity(0.85),
+              //   label: 'Import Tello Photos',
+              //   labelStyle: TextStyle(fontFamily: 'Poppins'),
+              //   onTap: _importFromTelloFolder,
+              // ),
+              //
               SpeedDialChild(
                 child: const Icon(Icons.photo_library, color: Colors.white),
                 backgroundColor: kOrange,
                 label: 'Add from Gallery',
-                labelStyle: GoogleFonts.poppins(),
+                labelStyle: TextStyle(fontFamily: 'Poppins'),
                 onTap: _pickFromGallery,
               ),
             ],
