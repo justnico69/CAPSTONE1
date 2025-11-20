@@ -1,3 +1,4 @@
+//image_handler.dart
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,11 +7,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// A helper class to manage image fetching and compression.
+/// A static helper class to manage all image fetching (gallery, Tello)
+/// and processing (compression, format conversion).
 class ImageHandler {
+  /// A single instance of ImagePicker for the app.
   static final _picker = ImagePicker();
 
-  /// Picks an image from the user's gallery.
+  /// Opens the device's gallery for the user to select a single image.
+  /// Returns a [File] object or `null` if the user cancels.
   static Future<File?> pickFromGallery() async {
     try {
       final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
@@ -23,17 +27,22 @@ class ImageHandler {
     return null;
   }
 
-  /// 🔹 --- THIS FUNCTION IS NOW UPDATED --- 🔹
-  /// Finds and returns a list of new image files from the Tello drone's directory
-  /// based on a UTC timestamp.
+  /// Scans the Tello drone's photo directory on the Android file system.
+  ///
+  /// This function compares the `lastModifiedSync` timestamp of each file (converted to UTC)
+  /// against the [lastImportTimestamp] (also in UTC) to find only new photos.
+  ///
+  /// [lastImportTimestamp] The UTC timestamp of the last successful import.
+  /// Returns a list of new [File] objects.
   static Future<List<File>> importFromTello(
-    DateTime lastImportTimestamp, // Now accepts the UTC timestamp
+    DateTime lastImportTimestamp,
   ) async {
     debugPrint(
       "  [ImageHandler] Checking for files modified AFTER (UTC): ${lastImportTimestamp.toIso8601String()}",
     );
 
     try {
+      /// The hardcoded file path for Tello photos on Android devices.
       final telloDir = Directory('/storage/emulated/0/Pictures/TelloPhoto');
       debugPrint("  [ImageHandler] Checking path: ${telloDir.path}");
 
@@ -51,19 +60,18 @@ class ImageHandler {
         return [];
       }
 
-      // Get a sample file for debugging
       final firstFile = allFiles.first;
       final firstFileModTime = firstFile.lastModifiedSync();
       debugPrint(
         "  [ImageHandler] Sample file: ${firstFile.path} | Modified (Local): $firstFileModTime | Modified (UTC): ${firstFileModTime.toUtc()}",
       );
 
-      // Filter the files
+      // Filter the files by their modification time.
       final newFiles = allFiles.where((f) {
-        // 🔹 FIX: Convert file time to UTC before comparing!
+        // Convert file's last modified time to UTC for a reliable comparison.
         final fileModTimeUtc = f.lastModifiedSync().toUtc();
 
-        // 🔹 FIX: Compare UTC to UTC
+        // Check if the file's time is *after* the last import time.
         final isNew = fileModTimeUtc.isAfter(lastImportTimestamp);
 
         debugPrint(
@@ -80,21 +88,23 @@ class ImageHandler {
     }
   }
 
-  /// 🔹 --- THIS FUNCTION IS NOW UPDATED --- 🔹
-  /// Compresses a given image file and saves it to a temporary directory.
-  /// Returns the new, compressed file.
+  /// Compresses the given [sourceFile] to a max 1080p width/height and 85% quality.
+  ///
+  /// This function also converts any image format (like PNGs from the Tello drone)
+  /// into [CompressFormat.jpeg] to ensure consistency and save space.
+  /// Returns the new, compressed [File] stored in the app's temp directory.
   static Future<File?> compressImage(File sourceFile) async {
     try {
       final tempDir = await getApplicationDocumentsDirectory();
 
-      // 1. Get the original filename WITHOUT the extension
+      // Get the original filename without the extension (e.g., "my_photo")
       final String baseName = p.basenameWithoutExtension(sourceFile.path);
 
-      // 2. Create a new target filename that *always* ends in .jpg
+      // Create a new target filename that *always* ends in .jpg
       final String targetFileName =
           '${DateTime.now().millisecondsSinceEpoch}_${baseName}.jpg';
 
-      // 3. Create the full target path
+      // Create the full path in the app's private "Temp" folder
       final targetPath = p.join(
         tempDir.path,
         'SPOTATO',
@@ -102,20 +112,20 @@ class ImageHandler {
         targetFileName, // Use the new .jpg filename
       );
 
-      // 4. Create the directory if it doesn't exist
+      // Ensure the "Temp" directory exists
       final targetDir = Directory(p.dirname(targetPath));
       if (!await targetDir.exists()) {
         await targetDir.create(recursive: true);
       }
 
+      // Compress and convert the file
       final result = await FlutterImageCompress.compressAndGetFile(
         sourceFile.absolute.path,
         targetPath,
         quality: 85,
         minWidth: 1080,
         minHeight: 1080,
-        // 5. 🔹 THE FIX: Explicitly tell the compressor to create a JPEG.
-        // This will convert PNGs to JPEGs and satisfy the validator.
+        // This converts PNGs (from Tello) to JPEGs, fixing the assertion error
         format: CompressFormat.jpeg,
       );
 

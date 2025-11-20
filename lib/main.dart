@@ -1,47 +1,64 @@
 import 'package:flutter/material.dart';
-import 'package:spotato/config.dart'; // 👈 Import config
-import 'package:spotato/landing_page.dart'; // 👈 Your app's landing page
-import 'package:spotato/notification_service.dart'; // 👈 Import notification service
+import 'package:spotato/config.dart';
+import 'package:spotato/landing_page.dart';
+import 'package:spotato/notification_service.dart';
 
-// 🔹 --- NEW: ADD YOUR GLOBAL COLORS --- 🔹
+/// Global color used throughout the SPOTATO application.
+/// Adjust this to match your visual theme.
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
-// (Add kOrange if you use it in your theme)
 
+/// Entry point of the SPOTATO app.
+///
+/// Performs essential asynchronous initialization before
+/// the UI renders, including:
+/// - Ensuring Flutter binding is initialized
+/// - Initializing notifications
+/// - Loading the TFLite model
 void main() async {
-  // 🔹 --- THIS IS THE NEW SETUP --- 🔹
-  // 1. Ensure Flutter is ready before running async code
+  /// Ensures Flutter's engine and plugin services are ready.
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. Run one-time initializations (this happens during splash screen)
+  /// Initializes notification channels at startup.
   debugPrint("--- [MAIN] Initializing Notifications...");
-  await NotificationService.init(); // Creates the channel
+  await NotificationService.init();
 
+  /// Loads the global TFLite model used across the app.
   debugPrint("--- [MAIN] Loading TFLite Model...");
-  await loadGlobalModel(); // Loads the model
+  await loadGlobalModel();
 
   debugPrint("--- [MAIN] All init complete. Running app.");
-  // 3. Run your app (this line is from your old file)
+
+  /// Launches the root widget.
   runApp(const SPOTATOApp());
-  // 🔹 --- END OF NEW SETUP --- 🔹
 }
 
+/// Root widget of the SPOTATO application.
+///
+/// Defines:
+/// - Global app theme
+/// - App title
+/// - Starting screen (LandingPage)
 class SPOTATOApp extends StatelessWidget {
   const SPOTATOApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      /// Title used in task manager and Android app switcher.
       title: 'SPOTATO',
-      debugShowCheckedModeBanner: false, // 👈 Added this to hide the banner
-      // 🔹 --- MODIFIED THEME --- 🔹
+
+      /// Removes the debug banner in debug mode.
+      debugShowCheckedModeBanner: false,
+
+      /// Defines the global theme of the application.
       theme: ThemeData(
-        primaryColor: kDarkBrown, // Use your app's color
-        fontFamily: 'Poppins', // Use your local Poppins font
+        primaryColor: kDarkBrown,
+        fontFamily: 'Poppins',
         useMaterial3: true,
       ),
 
-      // 🔹 --- END OF MODIFICATION --- 🔹
-      home: const LandingPage(), // This is the starting point of the app
+      /// Starting point of the app after initialization.
+      home: const LandingPage(),
     );
   }
 }

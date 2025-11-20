@@ -1,23 +1,23 @@
+//row_detail.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
-// import 'package:google_fonts/google_fonts.dart'; // No longer needed
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:spotato/image_handler.dart';
 
-// import 'package:tflite_flutter/tflite_flutter.dart'; // No longer needed here
-
 import 'analysis.dart';
 import 'analysis_viewer_page.dart';
-import 'config.dart'; // 👈 Import config
+import 'config.dart';
 import 'database_helper.dart';
 import 'notification_service.dart';
 
 const Color kDarkBrown = Color.fromARGB(255, 128, 68, 12);
 const Color kOrange = Color(0xFFEAA944);
 
+/// This page manages the "Current Scan" session.
+/// It handles image import (gallery/drone), analysis, and saving to an album.
 class RowDetailPage extends StatefulWidget {
   final String albumName;
   final String rowName;
@@ -34,51 +34,48 @@ class RowDetailPage extends StatefulWidget {
   _RowDetailPageState createState() => _RowDetailPageState();
 }
 
-// 🔹 --- 1. ADD 'WidgetsBindingObserver' --- 🔹
-// This lets us "watch" for when the app is paused or resumed.
+/// We mix in [WidgetsBindingObserver] to listen for app lifecycle changes.
+/// This allows us to detect when the user returns to the app from the Tello app.
 class _RowDetailPageState extends State<RowDetailPage>
     with WidgetsBindingObserver {
   List<DetectionResult> _results = [];
   String _telloPackage = "";
-  late DateTime _lastImportTimestamp;
+  late DateTime _lastImportTimestamp; // The "memory" of the last import time
 
   @override
   void initState() {
     super.initState();
     _telloPackage = widget.telloPackage;
+
+    // Store the time in UTC to avoid timezone bugs with file timestamps
     _lastImportTimestamp = DateTime.now().toUtc();
 
-    // 🔹 --- 2. REGISTER THE OBSERVER --- 🔹
-    // This tells Flutter we want to know about lifecycle changes.
+    // Register this page as an "observer" of the app's lifecycle
     WidgetsBinding.instance.addObserver(this);
 
-    // 1. Request permission (this is fast and safe to call)
+    // After the first frame, request notification permissions
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestNotificationPermission();
     });
 
-    // 2. Run the simple init tasks (this still only runs once)
+    // Run the initial setup
     _init();
   }
 
-  // 🔹 --- 3. ADD THE 'dispose' METHOD --- 🔹
-  // This cleans up the observer when the page is closed.
+  /// Clean up the observer when the page is closed to prevent memory leaks
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  // 🔹 --- 4. ADD THE 'didChangeAppLifecycleState' METHOD --- 🔹
-  // This is the magic! This function is called every time
-  // the user leaves the app or comes back to it.
+  /// This function is called every time the user leaves or returns to the app.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Check if the state is "resumed"
+    // When the user returns to the app (e.g., after using the Tello app)
     if (state == AppLifecycleState.resumed) {
-      // The user just came back to the app (e.g., from the Tello app)
       debugPrint("--- APP RESUMED --- Running Tello import check.");
 
       // Automatically run the import function
@@ -86,16 +83,15 @@ class _RowDetailPageState extends State<RowDetailPage>
     }
   }
 
-  // New, simple permission request function
+  /// Asks for permission to send notifications
   Future<void> _requestNotificationPermission() async {
     await NotificationService.requestPermission();
   }
 
-  // 🔹 --- 5. MODIFIED _init() --- 🔹
-  // We REMOVED the auto-import from here, because it will
-  // now be handled by 'didChangeAppLifecycleState'
+  /// Runs once on page load to prepare the session.
+  /// This clears any leftover images from a previous, unsaved session.
   void _init() {
-    _loadImages(); // Just load the images from DB
+    _loadImages(); // Load any images from the 'Current Scan' in the DB
 
     if (_results.isNotEmpty) {
       debugPrint(
@@ -107,10 +103,9 @@ class _RowDetailPageState extends State<RowDetailPage>
     if (_telloPackage.isEmpty) {
       _checkTelloApp();
     }
-
-    // The _importFromTelloFolder() call was removed from here.
   }
 
+  /// Scans the user's device for the Tello drone app package
   Future<void> _checkTelloApp() async {
     try {
       List<AppInfo> apps = await InstalledApps.getInstalledApps(true, true);
@@ -120,9 +115,12 @@ class _RowDetailPageState extends State<RowDetailPage>
           break;
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      debugPrint("Could not check for installed apps.");
+    }
   }
 
+  /// Loads images from the database that are in the 'Current Scan' album
   Future<void> _loadImages() async {
     final loadedResults = await DatabaseHelper.instance.getAnalysesForAlbum(
       'Current Scan',
@@ -131,18 +129,16 @@ class _RowDetailPageState extends State<RowDetailPage>
     setState(() => _results = loadedResults);
   }
 
+  /// Prompts the user to pick an image from their phone's gallery
   Future<void> _pickFromGallery() async {
     try {
-      debugPrint("Checking photos permission...");
+      // 1. Check and request photo permission
       var status = await Permission.photos.status;
-
       if (status.isDenied) {
-        debugPrint("Photos permission is denied. Requesting...");
         status = await Permission.photos.request();
       }
 
       if (status.isPermanentlyDenied) {
-        debugPrint("Photos permission permanently denied.");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -154,11 +150,12 @@ class _RowDetailPageState extends State<RowDetailPage>
         return;
       }
 
+      // 2. Only proceed if permission is granted
       if (status.isGranted) {
-        debugPrint("Photos permission granted. Opening gallery.");
         final sourceFile = await ImageHandler.pickFromGallery();
-        if (sourceFile == null) return;
+        if (sourceFile == null) return; // User cancelled
 
+        // 3. Compress the image
         final compressedFile = await ImageHandler.compressImage(sourceFile);
         if (compressedFile == null) {
           if (mounted) {
@@ -169,6 +166,7 @@ class _RowDetailPageState extends State<RowDetailPage>
           return;
         }
 
+        // 4. Create a result object and run analysis
         final newResult = DetectionResult(
           file: compressedFile,
           captureTime: await compressedFile.lastModified(),
@@ -177,12 +175,12 @@ class _RowDetailPageState extends State<RowDetailPage>
         await _runAnalysis(newResult);
         if (mounted) setState(() => _results.add(newResult));
 
+        // 5. Send notification
         await NotificationService.show(
           title: "SPOTATO",
           body: "Analysis complete: ${newResult.label ?? 'Unknown'}",
         );
       } else {
-        debugPrint("Photos permission was not granted.");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -193,16 +191,10 @@ class _RowDetailPageState extends State<RowDetailPage>
       }
     } catch (e) {
       debugPrint("Failed to pick image: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to get image. Check permissions.'),
-          ),
-        );
-      }
     }
   }
 
+  /// Launches the external Tello drone app
   Future<void> _launchTelloApp() async {
     if (_telloPackage.isEmpty) {
       if (mounted) {
@@ -224,11 +216,12 @@ class _RowDetailPageState extends State<RowDetailPage>
 
     await InstalledApps.startApp(_telloPackage);
 
+    // Show a helpful instruction message
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Fly your drone, take photos, then return here. New photos will be imported automatically.', // 👈 Updated text
+            'Fly your drone, take photos, then return here. New photos will be imported automatically.',
           ),
           duration: Duration(seconds: 6),
         ),
@@ -236,24 +229,17 @@ class _RowDetailPageState extends State<RowDetailPage>
     }
   }
 
+  /// Automatically imports new photos from the Tello folder
   Future<void> _importFromTelloFolder() async {
     debugPrint("--- AUTO-IMPORT TELLO PHOTOS RUNNING ---");
 
+    // 1. Check for "All Files Access" permission
     var status = await Permission.manageExternalStorage.status;
     debugPrint(
       "1. Checking 'Manage External Storage' permission. Status: ${status.name}",
     );
 
     if (status.isDenied) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Requesting "All Files Access" to read Tello folder...',
-            ),
-          ),
-        );
-      }
       status = await Permission.manageExternalStorage.request();
       debugPrint("2. Permission requested. New status: ${status.name}");
     }
@@ -273,30 +259,31 @@ class _RowDetailPageState extends State<RowDetailPage>
       return;
     }
 
+    // 2. Only proceed if permission is granted
     if (status.isGranted) {
       debugPrint("3. ✅ Permission is GRANTED.");
+
+      // Get the current time in UTC *before* checking
       final importCheckTime = DateTime.now().toUtc();
       debugPrint(
         "4. Calling ImageHandler. Checking for files modified AFTER (UTC): ${_lastImportTimestamp.toIso8601String()}",
       );
 
+      // 3. Call the ImageHandler to find new files
       final sourceFiles = await ImageHandler.importFromTello(
-        _lastImportTimestamp,
+        _lastImportTimestamp, // Pass the "memory" of the last import
       );
 
+      // 4. Update the "memory" to this new time
       _lastImportTimestamp = importCheckTime;
       debugPrint("5. Import finished. Found ${sourceFiles.length} new files.");
-      debugPrint(
-        "6. Timestamp updated. Will now ignore files before (UTC): ${_lastImportTimestamp.toIso8601String()}",
-      );
 
       if (sourceFiles.isEmpty) {
-        if (mounted) {
-          debugPrint("No new Tello photos found.");
-        }
+        debugPrint("No new Tello photos found.");
         return;
       }
 
+      // 5. Loop through, compress, and analyze each new file
       for (var file in sourceFiles) {
         final compressedFile = await ImageHandler.compressImage(file);
         if (compressedFile != null) {
@@ -328,6 +315,7 @@ class _RowDetailPageState extends State<RowDetailPage>
     }
   }
 
+  /// Runs the AI model on a single image and saves the result to the DB
   Future<void> _runAnalysis(DetectionResult res) async {
     if (globalInterpreter == null) {
       debugPrint("!!! [RUN ANALYSIS] Model not loaded, analysis skipped.");
@@ -341,15 +329,18 @@ class _RowDetailPageState extends State<RowDetailPage>
 
     if (!mounted) return;
     setState(() => res.isLoading = true);
-    await runModelAnalysis(res);
-    res.rowTag = null;
 
+    await runModelAnalysis(res); // This function is in 'analysis.dart'
+    res.rowTag = null; // The row tag is only added when saving the album
+
+    // Save to the DB.
     await DatabaseHelper.instance.insertAnalysis(res, 'Current Scan');
 
     if (!mounted) return;
     setState(() => res.isLoading = false);
   }
 
+  /// Shows the "Save Scan" dialog and assigns a Row Tag
   Future<void> _saveCurrentScan() async {
     if (_results.isEmpty) {
       ScaffoldMessenger.of(
@@ -359,6 +350,7 @@ class _RowDetailPageState extends State<RowDetailPage>
     }
     final now = DateTime.now();
 
+    // Create the user-friendly album name (e.g., "Scan_Nov-16-2025_7-40_PM")
     final String dateStr = DateFormat('MMM-d-y').format(now);
     final String timeStr = DateFormat('h-mm_a').format(now);
     final folderName = "Scan_${dateStr}_$timeStr";
@@ -366,12 +358,15 @@ class _RowDetailPageState extends State<RowDetailPage>
     String? selectedRowTag = "Row 1";
     String otherRowTag = "";
 
+    // Generate the list of "Row 1", "Row 2", ... "Row 10"
     List<String> rowOptions = List.generate(10, (i) => "Row ${i + 1}");
-    rowOptions.add("Other");
+    rowOptions.add("Other"); // Add "Other" at the end
 
+    // Show the pop-up dialog
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) {
+        // Use a StatefulBuilder so the dropdown can update *inside* the dialog
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -420,6 +415,7 @@ class _RowDetailPageState extends State<RowDetailPage>
                       ),
                     ),
                     const SizedBox(height: 8),
+                    // The scrollable dropdown menu
                     DropdownButtonFormField<String>(
                       value: selectedRowTag,
                       items: rowOptions.map((String value) {
@@ -443,6 +439,7 @@ class _RowDetailPageState extends State<RowDetailPage>
                         ),
                       ),
                     ),
+                    // The text field that appears if "Other" is selected
                     if (selectedRowTag == "Other")
                       Padding(
                         padding: const EdgeInsets.only(top: 10.0),
@@ -477,6 +474,7 @@ class _RowDetailPageState extends State<RowDetailPage>
                 ),
                 ElevatedButton(
                   onPressed: () {
+                    // Validation: Don't allow saving if "Other" is chosen but blank
                     if (selectedRowTag == "Other" &&
                         otherRowTag.trim().isEmpty) {
                       return;
@@ -505,12 +503,14 @@ class _RowDetailPageState extends State<RowDetailPage>
       },
     );
 
-    if (confirm != true) return;
+    if (confirm != true) return; // User pressed "Cancel"
 
+    // Get the final tag ("Other" or "Row X")
     final String finalRowTag = (selectedRowTag == "Other")
         ? otherRowTag.trim()
         : selectedRowTag ?? "N/A";
 
+    // Save the new album name and row tag to the database
     try {
       await DatabaseHelper.instance.updateAlbumAndTag(
         'Current Scan',
@@ -526,21 +526,24 @@ class _RowDetailPageState extends State<RowDetailPage>
             ),
           ),
         );
-        setState(() => _results.clear());
+        setState(() => _results.clear()); // Clear the UI
       }
     } catch (e) {
       debugPrint('Save error: $e');
     }
   }
 
+  /// Deletes all images (files and DB) from the "Current Scan"
   Future<void> _clearCurrentScan({bool updateState = true}) async {
     try {
       final resultsToClear = List<DetectionResult>.from(_results);
+      // 1. Delete the physical files from the phone's storage
       for (var res in resultsToClear) {
         if (await res.file.exists()) {
           await res.file.delete();
         }
       }
+      // 2. Delete the records from the database
       await DatabaseHelper.instance.deleteAlbum('Current Scan');
 
       if (mounted && updateState) {
@@ -555,8 +558,10 @@ class _RowDetailPageState extends State<RowDetailPage>
     }
   }
 
+  /// Handles the phone's back button press
   Future<bool> _onWillPop() async {
     if (_results.isNotEmpty) {
+      // If there are unsaved images, show the "Unsaved Work" dialog
       final shouldExit = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -582,7 +587,7 @@ class _RowDetailPageState extends State<RowDetailPage>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: () => Navigator.of(context).pop(false), // Don't exit
               child: Text(
                 'Cancel',
                 style: TextStyle(
@@ -594,8 +599,8 @@ class _RowDetailPageState extends State<RowDetailPage>
             ),
             ElevatedButton(
               onPressed: () async {
-                await _saveCurrentScan();
-                if (mounted) Navigator.of(context).pop(false);
+                await _saveCurrentScan(); // Save the work
+                if (mounted) Navigator.of(context).pop(false); // Don't exit
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kOrange,
@@ -614,8 +619,8 @@ class _RowDetailPageState extends State<RowDetailPage>
             ),
             ElevatedButton(
               onPressed: () {
-                _clearCurrentScan(updateState: false);
-                Navigator.of(context).pop(true);
+                _clearCurrentScan(updateState: false); // Clear the work
+                Navigator.of(context).pop(true); // Exit the page
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
@@ -637,9 +642,10 @@ class _RowDetailPageState extends State<RowDetailPage>
       );
       return shouldExit ?? false;
     }
-    return true;
+    return true; // No images, so allow the back press
   }
 
+  /// Builds a single tile in the image grid
   Widget _buildImageTile(DetectionResult res) {
     final fileOk = res.file.existsSync();
     final color = (res.label == 'Healthy')
@@ -650,6 +656,7 @@ class _RowDetailPageState extends State<RowDetailPage>
 
     return GestureDetector(
       onTap: () {
+        // When tapped, open the detailed viewer page
         if (!fileOk) return;
         Navigator.push(
           context,
@@ -671,9 +678,12 @@ class _RowDetailPageState extends State<RowDetailPage>
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // The image itself
             fileOk
                 ? Image.file(res.file, fit: BoxFit.cover)
                 : Container(color: Colors.black),
+
+            // The colored label bar at the bottom
             if (res.label != null)
               Positioned(
                 bottom: 0,
@@ -705,11 +715,12 @@ class _RowDetailPageState extends State<RowDetailPage>
     );
   }
 
+  /// Builds the main AppBar for the page
   AppBar _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.white,
       title: Text(
-        widget.rowName,
+        widget.rowName, // "Current Scan"
         style: TextStyle(
           fontFamily: 'Poppins',
           color: kDarkBrown,
@@ -718,6 +729,7 @@ class _RowDetailPageState extends State<RowDetailPage>
       ),
       iconTheme: const IconThemeData(color: kDarkBrown),
       actions: [
+        // The "Save" button
         IconButton(
           icon: const Icon(Icons.folder_open),
           tooltip: 'Save as Album',
@@ -731,7 +743,7 @@ class _RowDetailPageState extends State<RowDetailPage>
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: _onWillPop,
+      onWillPop: _onWillPop, // Handle back button presses
       child: Scaffold(
         backgroundColor: const Color.fromARGB(243, 248, 248, 248),
         appBar: _buildAppBar(),
@@ -739,7 +751,7 @@ class _RowDetailPageState extends State<RowDetailPage>
           padding: const EdgeInsets.only(
             left: 8,
             right: 8,
-            bottom: 200,
+            bottom: 200, // Padding at the bottom for the FAB
             top: 10,
           ),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -751,7 +763,7 @@ class _RowDetailPageState extends State<RowDetailPage>
           itemBuilder: (_, i) => _buildImageTile(_results[i]),
         ),
 
-        // 🔹 --- 6. REMOVED THE BUTTON --- 🔹
+        // The Floating Action Button (FAB) with multiple options
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(bottom: 16.0),
           child: SpeedDial(
@@ -773,17 +785,6 @@ class _RowDetailPageState extends State<RowDetailPage>
                 labelStyle: TextStyle(fontFamily: 'Poppins'),
                 onTap: _launchTelloApp,
               ),
-              //
-              // 🔹 --- THIS BUTTON IS GONE --- 🔹
-              //
-              // SpeedDialChild(
-              //   child: const Icon(Icons.download, color: Colors.white),
-              //   backgroundColor: kDarkBrown.withOpacity(0.85),
-              //   label: 'Import Tello Photos',
-              //   labelStyle: TextStyle(fontFamily: 'Poppins'),
-              //   onTap: _importFromTelloFolder,
-              // ),
-              //
               SpeedDialChild(
                 child: const Icon(Icons.photo_library, color: Colors.white),
                 backgroundColor: kOrange,
