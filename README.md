@@ -142,4 +142,114 @@ View History: Tap the "Albums" tab at the bottom of the screen to view, browse, 
 
 $$cite: 3024-3029$$
 
-.
+
+
+(INITIAL PUD NI BY JIMBOY)
+6. **API Overview**
+
+SPOTato system does NOT expose any public API, REST endpoints, or network-based services.
+
+This is a 100% offline-first, standalone Android mobile application designed for potato blight detection using a DJI Tello drone and on-device TensorFlow Lite inference. There is no backend server, no cloud sync, no internet requirement, and no external API.
+
+**Purpose:**  
+To enable farmers in remote and low-connectivity areas (especially in Manolo Fortich, Bukidnon, Philippines) to perform real-time, accurate detection of Early Blight and Late Blight in potato crops using only a low-cost drone and an Android smartphone — entirely offline.
+
+**Target Users:**  
+- Potato farmers in rural and off-grid areas  
+- Agricultural extension officers  
+- Researchers and students in precision agriculture  
+- Developers studying offline AI + drone + mobile integration
+
+All data (images, analysis results, albums) is stored locally using SQLite (`sqflite`) and the Android file system.
+
+
+7. **Authentication Details**
+
+Not applicable — No authentication system exists.
+
+The app has no login, no user accounts, no tokens, no API keys, and no OAuth.
+
+All features are available immediately upon opening the app. Data privacy is ensured by design: everything stays on the user's device.
+
+
+8. **Endpoint Documentation**
+
+No HTTP endpoints are available.
+
+This is a pure client-side Flutter application with zero network calls.
+
+For developers interested in internal "services" (local function-level APIs), here are the core reusable components:
+Component                    | File                               | Description
+-----------------------------------------------------------------------------------------------
+DatabaseHelper.instance      | lib/helpers/database_helper.dart   | Full CRUD for albums and detection results using SQLite
+ImageHandler                 | lib/helpers/image_handler.dart     | Imports, compresses, and processes images from Tello or gallery
+Analysis.runInference()      | lib/analysis.dart                  | Runs on-device EfficientNetB3 TFLite model
+getAnalysesForAlbum()        | DatabaseHelper                     | Retrieves all results for a saved scan session
+
+These are internal Dart classes/methods, not network-accessible APIs.
+
+
+9. **Error Handling**
+
+Since there is no server, all errors are handled gracefully within the Flutter app:
+- Missing/deleted images → Shows broken image icon with grey placeholder
+- No new Tello photos found → User-friendly message: "No new photos taken in the last 10 minutes"
+- Model loading failure → Disables analysis and shows error dialog
+- Database errors → Caught silently with fallback to empty state
+- Storage permission denied → Prompts user to grant permission
+
+All user-facing errors use `SnackBar`, `AlertDialog`, or fallback UI elements. No JSON error responses exist.
+
+
+10. **Version Information**
+
+Item                         | Details
+----------------------------------------------------------------------------------------------
+Latest Code Update           | November 19, 2025 
+App Version                  | Defined in pubspec.yaml (typically 1.0.0+1)
+AI Model                     | EfficientNetB3, converted to .tflite, trained on 2,714 custom/augmented images
+Flutter SDK                  | 3.x (stable channel)
+Supported Android Versions   | Android 10+ recommended
+API Versioning               | Not applicable — no public API
+
+Future versions may introduce optional cloud sync, but as of November 2025, the system remains fully offline by design.
+
+
+11. **License & Credits**
+
+License:  
+Copyright © 2025 – All Rights Reserved  
+University of Science and Technology of Southern Philippines (USTP)  
+No license file is currently provided. This is an academic capstone project. Redistribution or commercial use requires explicit permission from the authors and USTP.
+
+Authors / Developers:
+- Nicole Kabiling Camara  
+- Andreanne Monique Doloquin Gorres  
+- Aljo Nicolo Macasa Andina  
+- Jimboy Obial Pacanut  
+- Lenielyn Dalore Ponteras
+
+Capstone Adviser:  
+Mrs. Jocelyn Garrido
+
+Panel Members:  
+- Mrs. Ma. Esther Chio  
+- Mrs. Rhea Suzette M. Haguisan  
+- Mr. Jomar C. Llevado
+
+With special thanks to the farmers of Bukidnon:  
+Mr. Rolan Daman, Mrs. Irene Daman, Mr. Lowel Escaba, Mrs. Mayolina Escaba, Ms. Chona Binaliw
+
+Technologies Used:
+- Flutter & Dart
+- TensorFlow Lite (EfficientNetB3)
+- DJI Tello Drone (via official Ryze Tello app)
+- `tflite_flutter`, `sqflite`, `path_provider`, `image_picker`, `google_fonts`
+- PlantVillage Dataset (base) + custom field-collected images
+
+Institution:  
+University of Science and Technology of Southern Philippines, Cagayan De Oro   
+College of Information Technology and Computing  
+Department of Information Technology  
+November 2025
+
