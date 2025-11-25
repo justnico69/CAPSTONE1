@@ -179,6 +179,7 @@ No HTTP endpoints are available.
 This is a pure client-side Flutter application with zero network calls.
 
 For developers interested in internal "services" (local function-level APIs), here are the core reusable components:
+
 Component                    | File                               | Description
 -----------------------------------------------------------------------------------------------
 DatabaseHelper.instance      | lib/helpers/database_helper.dart   | Full CRUD for albums and detection results using SQLite
@@ -217,22 +218,22 @@ Future versions may introduce optional cloud sync, but as of November 2025, the 
 
 11. **License & Credits**
 
-License:  
+**License:**  
 Copyright © 2025 – All Rights Reserved  
 University of Science and Technology of Southern Philippines (USTP)  
 No license file is currently provided. This is an academic capstone project. Redistribution or commercial use requires explicit permission from the authors and USTP.
 
-Authors / Developers:
+**Authors / Developers:**
 - Nicole Kabiling Camara  
 - Andreanne Monique Doloquin Gorres  
 - Aljo Nicolo Macasa Andina  
 - Jimboy Obial Pacanut  
 - Lenielyn Dalore Ponteras
 
-Capstone Adviser:  
+**Capstone Adviser:**  
 Mrs. Jocelyn Garrido
 
-Panel Members:  
+**Panel Members:**  
 - Mrs. Ma. Esther Chio  
 - Mrs. Rhea Suzette M. Haguisan  
 - Mr. Jomar C. Llevado
@@ -240,14 +241,14 @@ Panel Members:
 With special thanks to the farmers of Bukidnon:  
 Mr. Rolan Daman, Mrs. Irene Daman, Mr. Lowel Escaba, Mrs. Mayolina Escaba, Ms. Chona Binaliw
 
-Technologies Used:
+**Technologies Used:**
 - Flutter & Dart
 - TensorFlow Lite (EfficientNetB3)
 - DJI Tello Drone (via official Ryze Tello app)
 - `tflite_flutter`, `sqflite`, `path_provider`, `image_picker`, `google_fonts`
 - PlantVillage Dataset (base) + custom field-collected images
 
-Institution:  
+**Institution:**  
 University of Science and Technology of Southern Philippines, Cagayan De Oro   
 College of Information Technology and Computing  
 Department of Information Technology  
