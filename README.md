@@ -224,6 +224,7 @@ University of Science and Technology of Southern Philippines (USTP)
 No license file is currently provided. This is an academic capstone project. Redistribution or commercial use requires explicit permission from the authors and USTP.
 
 **Authors / Developers:**
+<img width="1136" height="642" alt="Screenshot 2025-11-25 194933" src="https://github.com/user-attachments/assets/b2785358-2776-4644-a191-334c203c6ccb" />
 - Nicole Kabiling Camara  
 - Andreanne Monique Doloquin Gorres  
 - Aljo Nicolo Macasa Andina  
