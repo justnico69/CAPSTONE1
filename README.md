@@ -1,148 +1,90 @@
+# SPOTATO - Smart Potato Disease Detection (Drone-Powered)
 
-///WALA PANI
-SPOTato: Drone-based Potato Blight Detection
 
-1. Project Overview
+SPOTATO is a Flutter-based mobile application designed to help farmers quickly and accurately detect common potato diseases, specifically **Early Blight** and **Late Blight**. It integrates with the **Ryze Tello drone** to automate image capture in the field and uses an on-device **TensorFlow Lite (TFLite)** model for real-time analysis, even without an internet connection.
 
-SPOTato is a drone-based potato blight disease detection system built as a Capstone Project for the University of Science and Technology of Southern Philippines.
+---
 
-This project addresses the challenges of traditional manual crop inspection, which is time-consuming, labor-intensive, and prone to human error, often leading to late disease detection and significant crop loss 
+## Features
 
-$$cite: 528-531$$
+* **Real-time Disease Detection:** Utilizes a pre-trained TFLite model to classify potato leaves as **Healthy**, **Early Blight**, or **Late Blight**.
+* **Tello Drone Integration:** Seamlessly launches the Tello app to fly and capture images. Automatically imports, compresses, and analyzes new images upon returning to SPOTATO.
+* **Image Handling & Compression:** Compresses all imported images (from gallery or drone) to a maximum of 1080p and 85% quality, and converts them to JPEG for consistent, efficient processing.
+* **Local Data Persistence:** Stores all analysis results, including the image file path, prediction, confidence, and row-tag metadata, in a local **SQLite database**.
+* **Album and Location Tagging:** Allows users to save a "Current Scan" session as a persistent **Album**, providing the ability to tag the results with a specific **Row Tag** (e.g., 'Row 5', 'North Field') for easy location tracking.
+* **Intuitive UI/UX:** Uses a clean, Poppins-based design with distinct color-coding (Dark Brown, Orange) and a **`RowDetailPage`** for managing active scan sessions.
 
-.
+---
 
-Our solution is a standalone, offline-first mobile application for Android, built with Flutter. The system uses a DJI Tello drone to capture aerial images of potato leaves. These images are then processed by an on-device EfficientNetB3 AI model (trained on a dataset of 2,714 images 
+## System Requirements
 
-$$cite: 147-151$$
+### Mobile Device
+* **OS:** Android (The Tello app and file system access features, particularly `/storage/emulated/0/Pictures/TelloPhoto`, suggest a focus on the Android platform).
+* **Required Apps:** The official **Ryze Tello** application must be installed on the device for drone connectivity.
 
-) to provide immediate, real-time classification of "Early Blight," "Late Blight," or "Healthy" 
+### Development
+* **Flutter:** Stable Channel (The project uses modern Flutter features like `WidgetStateProperty` and TFLite for Flutter).
+* **TFLite Model:** The model asset `assets/models/model.tflite` must be present.
 
-$$cite: 1125-1127$$
+---
 
-. The app allows farmers to analyze crops, save the results into organized albums, and manage their field data without requiring an internet connection.
+## Installation Guide
 
-2. System Requirements
+### Prerequisites
+1.  **Install Flutter:** Follow the official Flutter installation guide.
+2.  **Clone the Repository:**
+    ```bash
+    git clone [YOUR_REPOSITORY_URL]
+    cd spotato
+    ```
+3.  **Add Model Assets:** Ensure your TFLite model is placed in the correct location:
+    ```
+    assets/models/model.tflite
+    ```
 
-Hardware
+### Setup and Running
+1.  **Get Dependencies:**
+    ```bash
+    flutter pub get
+    ```
+2.  **Run the App:**
+    ```bash
+    flutter run
+    ```
+    *Note: The app performs essential asynchronous setup (loading the TFLite model and initializing notifications) on startup before running the UI*[cite: 466, 467].
 
-Android Smartphone (Android 10 or higher recommended)
+---
 
-DJI Tello Drone
+## Folder Structure Explanation
 
-Software (for Users)
+The core logic of the application is organized within the `lib/` directory:
 
-The official DJI Tello App (com.ryzerobotics.tello) must be installed from the Google Play Store. The SPOTato app launches this external app for drone control 
+| File/Folder | Purpose | Key Files |
+| :--- | :--- | :--- |
+| `lib/main.dart` | Application entry point. Loads the TFLite model and initializes the root `SPOTATOApp`. | `main()` |
+| `lib/config.dart` | Global constants, TFLite configuration, and the core **`DetectionResult`** data class. | `kModelAssetPath`, `DetectionResult` |
+| `lib/database_helper.dart` | Manages the **SQLite database**. Includes functions for inserting analysis results and querying albums. | `tableAnalyses`, `getAllAlbums()` |
+| `lib/analysis.dart` | Contains the logic for running the TFLite inference. **Crucially, it includes the fix to remove normalization for raw pixel values**. | `_imageToTensor()`, `runModelAnalysis()` |
+| `lib/row_detail.dart` | The **Current Scan** session manager. Handles image picking, Tello import logic, and the Save Album dialog[cite: 485, 549, 582]. | `_importFromTelloFolder()`, `_saveCurrentScan()` |
+| `lib/album_page.dart` | Displays the list of all saved albums and manages the multi-select/delete functionality. | `_deleteSelected()`, `build()` |
+| `lib/image_handler.dart` | Utility class for all image-related file operations: picking, importing from Tello directory, and compression[cite: 401, 411]. | `importFromTello()`, `compressImage()` |
 
-$$cite: 3281-3286$$
+---
 
-.
+## 🚦 Usage Workflow
 
-Platform: Android only. iOS is not supported due to Android-specific file system paths (/storage/emulated/0/Pictures/TelloPhoto 
+The primary user workflow is initiated from the Home Page:
 
-$$cite: 3053$$
+1. **Detect Disease:** Tap the **'Detect Disease'** button.
+2.  **Start Scan Session:** The user is taken to the **'Current Scan'** page (`RowDetailPage`).
+3.  **Add Images:** Use the **Floating Action Button (`+`)** to:
+    * **Launch Tello:** Opens the Tello app. Upon returning, new photos will be automatically imported, compressed, and analyzed.
+    * **Add from Gallery:** Imports a single image from the device's gallery.
+4.  **Analysis:** The image is immediately processed by the local TFLite model. Notifications are sent when analysis is complete.
+5.  **Save Album:** Tap the **'Save as Album'** icon, select or enter a **Row Tag**, and save the entire scan session to a new album.
+6.  **View Results:** Access saved scans via the **'Albums'** tab.
 
-) and app-launching logic.
-
-Software (for Developers)
-
-Flutter SDK (version 3.x)
-
-Dart SDK (version 3.x)
-
-Android SDK (Android Studio or command-line tools)
-
-3. Installation Guide
-
-Follow these steps to get a local copy of the project up and running for development.
-
-Clone the repository
-
-git clone [https://github.com/your-username/spotato.git](https://github.com/your-username/spotato.git)
-
-
-Navigate to the project directory
-
-cd spotato
-
-
-Install dependencies
-
-flutter pub get
-
-
-Connect an Android Device
-Enable Developer Mode and USB Debugging on your Android device and connect it to your computer.
-
-Run the application
-
-flutter run
-
-
-4. Folder Structure Explanation
-
-A brief overview of the key directories and files in this project:
-
-spotato/
-├── assets/
-│   ├── images/         # All logos, icons, and UI graphics
-│   └── models/         # Contains the trained model.tflite file [cite: 2186]
-│
-├── lib/
-│   ├── pages/          # UI/Screen files (e.g., home_page.dart, album_page.dart, row_detail.dart)
-│   ├── helpers/        # Core logic modules
-│   │   ├── database_helper.dart  # Manages the local Sqflite database [cite: 2284]
-│   │   └── image_handler.dart    # Handles gallery/Tello image import and compression [cite: 3033]
-│   │
-│   ├── analysis.dart     # Handles AI model preprocessing and TFLite inference [cite: 1815]
-│   ├── config.dart       # App-wide constants (model labels, colors, etc.)
-│   ├── main.dart         # The main entry point for the application
-│   └── ...
-│
-└── pubspec.yaml        # Flutter project configuration and list of all dependencies
-
-
-5. Running the Application (User Guide)
-
-Onboarding: The app opens with a 5-second splash screen, followed by a "Get Started" page. Tap "Get Started" to enter the app 
-
-$$cite: 3113-3128, 2601-2603$$
-
-.
-
-Home Screen: You will land on the Home tab, which shows your most recent analyses. Tap the "Detect Disease" button to begin a new scan 
-
-$$cite: 2970-2796$$
-
-.
-
-Start Scanning: You are now on the "Current Scan" page. You have two options:
-
-Tap "Use Tello": This will launch the DJI Tello app. Connect to your drone, fly, and take pictures of your crops. When finished, manually return to the SPOTato app. It will automatically find and import all photos taken in the last 10 minutes 
-
-$$cite: 3340-3356, 3051-3059$$
-
-.
-
-Tap "Add Image": This opens your phone's gallery to import and analyze existing photos 
-
-$$cite: 3314-3317$$
-
-.
-
-Review Results: As images are imported, they are automatically analyzed and will appear in the grid, tagged with a result ("Healthy," "Early Blight," or "Late Blight").
-
-Save Session: When you are done, tap the Save (folder) icon in the top-right corner. This will save all the images from your "Current Scan" into a new, permanent album (e.g., "Scan_11-01-2025_19-30") 
-
-$$cite: 3396-3405$$
-
-.
-
-View History: Tap the "Albums" tab at the bottom of the screen to view, browse, and manage all your past saved albums 
-
-$$cite: 3024-3029$$
-
-
+---------
 
 (INITIAL PUD NI BY JIMBOY)
 6. **API Overview**
