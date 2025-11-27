@@ -86,17 +86,17 @@ The primary user workflow is initiated from the Home Page:
 
 ---------
 
-(INITIAL PUD NI BY JIMBOY)
-6. **API Overview**
+
+## API Overview
 
 SPOTato system does NOT expose any public API, REST endpoints, or network-based services.
 
 This is a 100% offline-first, standalone Android mobile application designed for potato blight detection using a DJI Tello drone and on-device TensorFlow Lite inference. There is no backend server, no cloud sync, no internet requirement, and no external API.
 
-**Purpose:**  
+### Purpose:  
 To enable farmers in remote and low-connectivity areas (especially in Manolo Fortich, Bukidnon, Philippines) to perform real-time, accurate detection of Early Blight and Late Blight in potato crops using only a low-cost drone and an Android smartphone — entirely offline.
 
-**Target Users:**  
+### Target Users:  
 - Potato farmers in rural and off-grid areas  
 - Agricultural extension officers  
 - Researchers and students in precision agriculture  
@@ -105,7 +105,7 @@ To enable farmers in remote and low-connectivity areas (especially in Manolo For
 All data (images, analysis results, albums) is stored locally using SQLite (`sqflite`) and the Android file system.
 
 
-7. **Authentication Details**
+## Authentication Details
 
 Not applicable — No authentication system exists.
 
@@ -114,7 +114,7 @@ The app has no login, no user accounts, no tokens, no API keys, and no OAuth.
 All features are available immediately upon opening the app. Data privacy is ensured by design: everything stays on the user's device.
 
 
-8. **Endpoint Documentation**
+## Endpoint Documentation
 
 No HTTP endpoints are available.
 
@@ -132,7 +132,7 @@ getAnalysesForAlbum()        | DatabaseHelper                     | Retrieves al
 These are internal Dart classes/methods, not network-accessible APIs.
 
 
-9. **Error Handling**
+## Error Handling
 
 Since there is no server, all errors are handled gracefully within the Flutter app:
 - Missing/deleted images → Shows broken image icon with grey placeholder
@@ -144,7 +144,7 @@ Since there is no server, all errors are handled gracefully within the Flutter a
 All user-facing errors use `SnackBar`, `AlertDialog`, or fallback UI elements. No JSON error responses exist.
 
 
-10. **Version Information**
+## Version Information
 
 Item                         | Details
 ----------------------------------------------------------------------------------------------
@@ -158,25 +158,24 @@ API Versioning               | Not applicable — no public API
 Future versions may introduce optional cloud sync, but as of November 2025, the system remains fully offline by design.
 
 
-11. **License & Credits**
+## License & Credits
 
-**License:**  
+### License:  
 Copyright © 2025 – All Rights Reserved  
 University of Science and Technology of Southern Philippines (USTP)  
 No license file is currently provided. This is an academic capstone project. Redistribution or commercial use requires explicit permission from the authors and USTP.
 
-**Authors / Developers:**
-<img width="1136" height="642" alt="Screenshot 2025-11-25 194933" src="https://github.com/user-attachments/assets/b2785358-2776-4644-a191-334c203c6ccb" />
+### Authors / Developers:
 - Nicole Kabiling Camara  
 - Andreanne Monique Doloquin Gorres  
 - Aljo Nicolo Macasa Andina  
 - Jimboy Obial Pacanut  
 - Lenielyn Dalore Ponteras
 
-**Capstone Adviser:**  
+### Capstone Adviser:  
 Mrs. Jocelyn Garrido
 
-**Panel Members:**  
+### Panel Members:  
 - Mrs. Ma. Esther Chio  
 - Mrs. Rhea Suzette M. Haguisan  
 - Mr. Jomar C. Llevado
@@ -184,14 +183,14 @@ Mrs. Jocelyn Garrido
 With special thanks to the farmers of Bukidnon:  
 Mr. Rolan Daman, Mrs. Irene Daman, Mr. Lowel Escaba, Mrs. Mayolina Escaba, Ms. Chona Binaliw
 
-**Technologies Used:**
+### Technologies Used:
 - Flutter & Dart
 - TensorFlow Lite (EfficientNetB3)
 - DJI Tello Drone (via official Ryze Tello app)
 - `tflite_flutter`, `sqflite`, `path_provider`, `image_picker`, `google_fonts`
 - PlantVillage Dataset (base) + custom field-collected images
 
-**Institution:**  
+### Institution:  
 University of Science and Technology of Southern Philippines, Cagayan De Oro   
 College of Information Technology and Computing  
 Department of Information Technology  
