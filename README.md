@@ -122,12 +122,13 @@ This is a pure client-side Flutter application with zero network calls.
 
 For developers interested in internal "services" (local function-level APIs), here are the core reusable components:
 
-Component                    | File                               | Description
------------------------------------------------------------------------------------------------
-DatabaseHelper.instance      | lib/helpers/database_helper.dart   | Full CRUD for albums and detection results using SQLite
-ImageHandler                 | lib/helpers/image_handler.dart     | Imports, compresses, and processes images from Tello or gallery
-Analysis.runInference()      | lib/analysis.dart                  | Runs on-device EfficientNetB3 TFLite model
-getAnalysesForAlbum()        | DatabaseHelper                     | Retrieves all results for a saved scan session
+| Component                 | Purpose                                                         | File / Key Methods                                                               |
+| :------------------------ | :-------------------------------------------------------------- | :------------------------------------------------------------------------------- |
+| `DatabaseHelper.instance` | Full CRUD for albums and detection results using SQLite         | `lib/helpers/database_helper.dart` — `insertAnalysis()`, `getAnalysesForAlbum()` |
+| `ImageHandler`            | Imports, compresses, and processes images from Tello or gallery | `lib/helpers/image_handler.dart` — `importFromTello()`, `compressImage()`        |
+| `Analysis.runInference()` | Runs on-device EfficientNetB3 TFLite model                      | `lib/analysis.dart` — `runInference()`, `_imageToTensor()`                       |
+| `getAnalysesForAlbum()`   | Retrieves all results for a saved scan session                  | `DatabaseHelper` class                                                           |
+
 
 These are internal Dart classes/methods, not network-accessible APIs.
 
@@ -146,14 +147,15 @@ All user-facing errors use `SnackBar`, `AlertDialog`, or fallback UI elements. N
 
 ## Version Information
 
-Item                         | Details
-----------------------------------------------------------------------------------------------
-Latest Code Update           | November 19, 2025 
-App Version                  | Defined in pubspec.yaml (typically 1.0.0+1)
-AI Model                     | EfficientNetB3, converted to .tflite, trained on 2,714 custom/augmented images
-Flutter SDK                  | 3.x (stable channel)
-Supported Android Versions   | Android 10+ recommended
-API Versioning               | Not applicable — no public API
+| Item                       | Details                                                                          |
+| :------------------------- | :------------------------------------------------------------------------------- |
+| Latest Code Update         | November 19, 2025                                                                |
+| App Version                | Defined in `pubspec.yaml` (typically `1.0.0+1`)                                  |
+| AI Model                   | EfficientNetB3, converted to `.tflite`, trained on 2,714 custom/augmented images |
+| Flutter SDK                | 3.x (stable channel)                                                             |
+| Supported Android Versions | Android 10+ recommended                                                          |
+| API Versioning             | Not applicable — no public API                                                   |
+
 
 Future versions may introduce optional cloud sync, but as of November 2025, the system remains fully offline by design.
 
