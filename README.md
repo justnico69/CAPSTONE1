@@ -34,7 +34,7 @@ SPOTATO is a Flutter-based mobile application designed to help farmers quickly a
 1.  **Install Flutter:** Follow the official Flutter installation guide.
 2.  **Clone the Repository:**
     ```bash
-    git clone [YOUR_REPOSITORY_URL]
+    git clone https://github.com/justnico69/CAPSTONE1.git
     cd spotato
     ```
 3.  **Add Model Assets:** Ensure your TFLite model is placed in the correct location:
@@ -51,7 +51,7 @@ SPOTATO is a Flutter-based mobile application designed to help farmers quickly a
     ```bash
     flutter run
     ```
-    *Note: The app performs essential asynchronous setup (loading the TFLite model and initializing notifications) on startup before running the UI*[cite: 466, 467].
+    *Note: The app performs essential asynchronous setup (loading the TFLite model and initializing notifications) on startup before running the UI*.
 
 ---
 
@@ -65,9 +65,9 @@ The core logic of the application is organized within the `lib/` directory:
 | `lib/config.dart` | Global constants, TFLite configuration, and the core **`DetectionResult`** data class. | `kModelAssetPath`, `DetectionResult` |
 | `lib/database_helper.dart` | Manages the **SQLite database**. Includes functions for inserting analysis results and querying albums. | `tableAnalyses`, `getAllAlbums()` |
 | `lib/analysis.dart` | Contains the logic for running the TFLite inference. **Crucially, it includes the fix to remove normalization for raw pixel values**. | `_imageToTensor()`, `runModelAnalysis()` |
-| `lib/row_detail.dart` | The **Current Scan** session manager. Handles image picking, Tello import logic, and the Save Album dialog[cite: 485, 549, 582]. | `_importFromTelloFolder()`, `_saveCurrentScan()` |
+| `lib/row_detail.dart` | The **Current Scan** session manager. Handles image picking, Tello import logic, and the Save Album dialog. | `_importFromTelloFolder()`, `_saveCurrentScan()` |
 | `lib/album_page.dart` | Displays the list of all saved albums and manages the multi-select/delete functionality. | `_deleteSelected()`, `build()` |
-| `lib/image_handler.dart` | Utility class for all image-related file operations: picking, importing from Tello directory, and compression[cite: 401, 411]. | `importFromTello()`, `compressImage()` |
+| `lib/image_handler.dart` | Utility class for all image-related file operations: picking, importing from Tello directory, and compression. | `importFromTello()`, `compressImage()` |
 
 ---
 
