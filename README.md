@@ -86,7 +86,6 @@ The primary user workflow is initiated from the Home Page:
 
 ---------
 
-
 ## API Overview
 
 SPOTato system does NOT expose any public API, REST endpoints, or network-based services.
@@ -104,6 +103,7 @@ To enable farmers in remote and low-connectivity areas (especially in Manolo For
 
 All data (images, analysis results, albums) is stored locally using SQLite (`sqflite`) and the Android file system.
 
+---
 
 ## Authentication Details
 
@@ -113,6 +113,7 @@ The app has no login, no user accounts, no tokens, no API keys, and no OAuth.
 
 All features are available immediately upon opening the app. Data privacy is ensured by design: everything stays on the user's device.
 
+---
 
 ## Endpoint Documentation
 
@@ -129,9 +130,9 @@ For developers interested in internal "services" (local function-level APIs), he
 | `Analysis.runInference()` | Runs on-device EfficientNetB3 TFLite model                      | `lib/analysis.dart` — `runInference()`, `_imageToTensor()`                       |
 | `getAnalysesForAlbum()`   | Retrieves all results for a saved scan session                  | `DatabaseHelper` class                                                           |
 
-
 These are internal Dart classes/methods, not network-accessible APIs.
 
+---
 
 ## Error Handling
 
@@ -144,6 +145,7 @@ Since there is no server, all errors are handled gracefully within the Flutter a
 
 All user-facing errors use `SnackBar`, `AlertDialog`, or fallback UI elements. No JSON error responses exist.
 
+---
 
 ## Version Information
 
@@ -159,6 +161,7 @@ All user-facing errors use `SnackBar`, `AlertDialog`, or fallback UI elements. N
 
 Future versions may introduce optional cloud sync, but as of November 2025, the system remains fully offline by design.
 
+---
 
 ## License & Credits
 
