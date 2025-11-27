@@ -150,7 +150,7 @@ All user-facing errors use `SnackBar`, `AlertDialog`, or fallback UI elements. N
 | Item                       | Details                                                                          |
 | :------------------------- | :------------------------------------------------------------------------------- |
 | Latest Code Update         | November 19, 2025                                                                |
-| App Version                | Defined in `pubspec.yaml` (typically `1.0.0+1`)                                  |
+| App Version                | 1.0.0+1                                  |
 | AI Model                   | EfficientNetB3, converted to `.tflite`, trained on 2,714 custom/augmented images |
 | Flutter SDK                | 3.x (stable channel)                                                             |
 | Supported Android Versions | Android 10+ recommended                                                          |
