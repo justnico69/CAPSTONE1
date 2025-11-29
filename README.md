@@ -71,7 +71,7 @@ The core logic of the application is organized within the `lib/` directory:
 
 ---
 
-## 🚦 Usage Workflow
+##  Usage Workflow
 
 The primary user workflow is initiated from the Home Page:
 
@@ -193,7 +193,7 @@ Mr. Rolan Daman, Mrs. Irene Daman, Mr. Lowel Escaba, Mrs. Mayolina Escaba, Ms. C
 - TensorFlow Lite (EfficientNetB3)
 - DJI Tello Drone (via official Ryze Tello app)
 - `tflite_flutter`, `sqflite`, `path_provider`, `image_picker`, `google_fonts`
-- PlantVillage Dataset (base) + custom field-collected images
+- Public Datasets on Kaggle
 
 ### Institution:  
 University of Science and Technology of Southern Philippines, Cagayan De Oro   
