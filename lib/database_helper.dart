@@ -87,32 +87,64 @@ class DatabaseHelper {
   }
 
   // 🔹 --- THIS FUNCTION IS NOW FIXED --- 🔹
-  Future<List<Map<String, dynamic>>> getAllAlbums() async {
+  // 🔹 --- FILTERING IMPLEMENTED HERE --- 🔹
+  /// Retrieves albums with optional filtering.
+  /// [startDate] and [endDate] filter by the album's latest image time.
+  /// [filterType] can be 'All', 'Has Disease', or 'Healthy'.
+  Future<List<Map<String, dynamic>>> getAllAlbums({
+    DateTime? startDate,
+    DateTime? endDate,
+    String filterType = 'All', // 'All', 'Has Disease', 'Healthy'
+  }) async {
     Database db = await instance.database;
 
-    // 🔹 FIXED: Added columnRowTag to the SELECT and GROUP BY
-    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+    // 1. Build the WHERE clause (Date Range & Exclude Current Scan)
+    String whereClause = "$columnAlbumName != 'Current Scan'";
+    List<dynamic> whereArgs = [];
+
+    if (startDate != null) {
+      whereClause += " AND $columnCaptureTime >= ?";
+      whereArgs.add(startDate.toIso8601String());
+    }
+    if (endDate != null) {
+      // Add one day to include the end date fully (up to midnight)
+      final effectiveEndDate = endDate.add(const Duration(days: 1));
+      whereClause += " AND $columnCaptureTime < ?";
+      whereArgs.add(effectiveEndDate.toIso8601String());
+    }
+
+    // 2. Build the HAVING clause (Disease Filter)
+    String havingClause = "";
+    if (filterType == 'Has Disease') {
+      // Must have at least one image with 'Blight'
+      havingClause = "HAVING SUM(CASE WHEN $columnLabel LIKE '%Blight%' THEN 1 ELSE 0 END) > 0";
+    } else if (filterType == 'Healthy') {
+      // Must have ZERO images with 'Blight'
+      havingClause = "HAVING SUM(CASE WHEN $columnLabel LIKE '%Blight%' THEN 1 ELSE 0 END) = 0";
+    }
+
+    // 3. Construct the Query
+    // We group by AlbumName and RowTag to aggregate stats
+    final sql = '''
       SELECT
         $columnAlbumName,
         $columnRowTag, 
         MAX($columnCaptureTime) as latestImageTime,
-        COUNT($columnId) as imageCount
+        COUNT($columnId) as imageCount,
+        SUM(CASE WHEN $columnLabel LIKE '%Blight%' THEN 1 ELSE 0 END) as diseaseCount
       FROM $tableAnalyses
-      WHERE $columnAlbumName != 'Current Scan'
+      WHERE $whereClause
       GROUP BY $columnAlbumName, $columnRowTag
+      $havingClause
       ORDER BY latestImageTime DESC
-      ''');
+    ''';
 
-    // 🔹 DEBUGGING: See what the database is returning
-    debugPrint("--- [DatabaseHelper] getAllAlbums() ---");
+    final List<Map<String, dynamic>> maps = await db.rawQuery(sql, whereArgs);
+
+    // 🔹 DEBUGGING
+    debugPrint("--- [DatabaseHelper] getAllAlbums(Filter: $filterType) ---");
     debugPrint("Found ${maps.length} albums.");
-    for (var album in maps) {
-      debugPrint(
-        "  - Album: ${album[columnAlbumName]}, Row: ${album[columnRowTag]}",
-      );
-    }
-    // ------------------------------------------------
-
+    
     return maps;
   }
 

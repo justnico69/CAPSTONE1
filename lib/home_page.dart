@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spotato/album_page.dart';
 import 'package:spotato/analysis_viewer_page.dart';
 import 'package:spotato/config.dart';
 import 'package:spotato/database_helper.dart';
 import 'package:spotato/row_detail.dart';
 import 'package:spotato/tutorial_page.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,12 +25,193 @@ class _HomePageState extends State<HomePage> {
   // 2. A List to hold the current data (for instant refreshes).
   List<DetectionResult>? _recentResults;
 
+  // Tutorial Keys
+  final GlobalKey _detectButtonKey = GlobalKey();
+  final GlobalKey _albumsTabKey = GlobalKey();
+  final GlobalKey _helpButtonKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     checkInstalledApps();
     // ✅ Assign the future here ONCE for the initial load.
     _initialLoadFuture = DatabaseHelper.instance.getRecentAnalyses();
+
+    // Trigger tutorial after frame build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowTutorial();
+    });
+  }
+
+  Future<void> _checkAndShowTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasSeenTutorial = prefs.getBool('hasSeenHomeTutorial') ?? false;
+
+    if (!hasSeenTutorial) {
+      // Use a slight delay to ensure UI is ready
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _showTutorial();
+      });
+    }
+  }
+
+  void _showTutorial() {
+    TutorialCoachMark(
+      targets: _createTargets(),
+      colorShadow: Colors.white, // 🔹 Changed to White
+      textSkip: "SKIP",
+      textStyleSkip: const TextStyle(
+        color: Color.fromARGB(255, 128, 68, 12), // 🔹 Dark Brown Skip
+        fontWeight: FontWeight.bold,
+      ),
+      paddingFocus: 10,
+      opacityShadow: 0.9, // 🔹 High opacity to hide clutter
+      onFinish: () {
+        _markTutorialSeen();
+      },
+      onSkip: () {
+        _markTutorialSeen();
+        return true;
+      },
+      onClickTarget: (target) {
+        if (target.identify == "detectButton") {
+          // 🔹 Interactive! Go to the next page.
+          _navigateAndRefresh(
+            context,
+            const RowDetailPage(
+              albumName: "New Detections",
+              rowName: "Current Scan",
+            ),
+          );
+        }
+      },
+    ).show(context: context);
+  }
+
+  Future<void> _markTutorialSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasSeenHomeTutorial', true);
+  }
+
+  List<TargetFocus> _createTargets() {
+    List<TargetFocus> targets = [];
+    const kTextColor = Color.fromARGB(255, 128, 68, 12); // 🔹 Dark Brown Text
+
+    // Target 1: Albums Tab
+    targets.add(
+      TargetFocus(
+        identify: "albumsTab",
+        keyTarget: _albumsTabKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const <Widget>[
+                  Text(
+                    "View History",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: kTextColor, // 🔹 Dark Brown Text
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                    child: Text(
+                      "Access your saved albums and past detection results here.",
+                      style: TextStyle(color: kTextColor),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+     // Target 2: Help Button
+    targets.add(
+      TargetFocus(
+        identify: "helpButton",
+        keyTarget: _helpButtonKey,
+        alignSkip: Alignment.bottomLeft,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: const <Widget>[
+                  Text(
+                    "Need Help?",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: kTextColor, // 🔹 Dark Brown Text
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                    child: Text(
+                      "Tap here to view the tutorial and guide again at any time.",
+                      style: TextStyle(color: kTextColor),
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    // Target 3: Detect Disease Button (Last Step -> Action)
+    targets.add(
+      TargetFocus(
+        identify: "detectButton",
+        keyTarget: _detectButtonKey,
+        alignSkip: Alignment.topRight,
+        shape: ShapeLightFocus.RRect,
+        radius: 12, // Match button radius
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom, // 🔹 Moved text BELOW the button
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const <Widget>[
+                  Text(
+                    "Start Detection",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: kTextColor, // 🔹 Dark Brown Text
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                    child: Text(
+                      "Tap this button to start a new session.\nThis will take you to the scanning page.",
+                      style: TextStyle(color: kTextColor),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    return targets;
   }
 
   Future<void> checkInstalledApps() async {
@@ -73,12 +256,14 @@ class _HomePageState extends State<HomePage> {
     required String label,
     required bool isSelected,
     required double screenWidth,
+    Key? key, // Add Key parameter
   }) {
     final color = isSelected
         ? const Color.fromARGB(255, 82, 42, 4)
         : Colors.grey;
     return Expanded(
       child: InkWell(
+        key: key, // Assign the key to InkWell
         onTap: () {
           if (label == "Home") {
             _refreshRecentImages(); // Call the refresh function
@@ -185,6 +370,7 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                       IconButton(
+                        key: _helpButtonKey, // ✅ Key assigned
                         icon: const Icon(
                           Icons.help_outline,
                           color: Color.fromARGB(255, 128, 68, 12),
@@ -285,6 +471,7 @@ class _HomePageState extends State<HomePage> {
                               ),
                               const SizedBox(height: 20),
                               ElevatedButton(
+                                key: _detectButtonKey, // ✅ Key assigned (Empty State)
                                 onPressed: () => _navigateAndRefresh(
                                   context,
                                   const RowDetailPage(
@@ -377,6 +564,7 @@ class _HomePageState extends State<HomePage> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
+                              key: _detectButtonKey, // ✅ Key assigned (Data State)
                               onPressed: () => _navigateAndRefresh(
                                 context,
                                 const RowDetailPage(
@@ -429,6 +617,7 @@ class _HomePageState extends State<HomePage> {
               screenWidth: screenWidth,
             ),
             _buildBottomNavItem(
+              key: _albumsTabKey, // ✅ Key assigned
               icon: Icons.photo_album,
               label: "Albums",
               isSelected: false,

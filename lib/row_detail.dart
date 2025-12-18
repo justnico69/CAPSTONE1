@@ -6,6 +6,8 @@ import 'package:installed_apps/installed_apps.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:spotato/image_handler.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'analysis.dart';
 import 'analysis_viewer_page.dart';
@@ -42,6 +44,8 @@ class _RowDetailPageState extends State<RowDetailPage>
   String _telloPackage = "";
   late DateTime _lastImportTimestamp; // The "memory" of the last import time
 
+  final GlobalKey _fabKey = GlobalKey(); // 🔹 Key for the Add Button
+
   @override
   void initState() {
     super.initState();
@@ -56,10 +60,87 @@ class _RowDetailPageState extends State<RowDetailPage>
     // After the first frame, request notification permissions
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestNotificationPermission();
+      _checkAndShowTutorial(); // 🔹 Check for tutorial
     });
 
     // Run the initial setup
     _init();
+  }
+
+  // 🔹 --- TUTORIAL LOGIC --- 🔹
+  Future<void> _checkAndShowTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasSeen = prefs.getBool('hasSeenScanTutorial') ?? false;
+
+    if (!hasSeen) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _showTutorial();
+      });
+    }
+  }
+
+  void _showTutorial() {
+    TutorialCoachMark(
+      targets: _createTargets(),
+      colorShadow: Colors.white,
+      textSkip: "SKIP",
+      textStyleSkip: const TextStyle(
+        color: Color.fromARGB(255, 128, 68, 12),
+        fontWeight: FontWeight.bold,
+      ),
+      paddingFocus: 10,
+      opacityShadow: 0.9,
+      onFinish: _markTutorialSeen,
+      onSkip: () {
+        _markTutorialSeen();
+        return true;
+      },
+    ).show(context: context);
+  }
+
+  Future<void> _markTutorialSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasSeenScanTutorial', true);
+  }
+
+  List<TargetFocus> _createTargets() {
+    return [
+      TargetFocus(
+        identify: "fabButton",
+        keyTarget: _fabKey,
+        alignSkip: Alignment.topLeft,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: const <Widget>[
+                  Text(
+                    "Add Images",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color.fromARGB(255, 128, 68, 12),
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                    child: Text(
+                      "Tap here to Launch Tello Drone\nor Pick from Gallery.",
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                          color: Color.fromARGB(255, 128, 68, 12)),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    ];
   }
 
   /// Clean up the observer when the page is closed to prevent memory leaks
@@ -767,6 +848,7 @@ class _RowDetailPageState extends State<RowDetailPage>
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(bottom: 16.0),
           child: SpeedDial(
+            key: _fabKey, // 🔹 Assigned Key for Tutorial
             icon: Icons.add,
             activeIcon: Icons.close,
             backgroundColor: kOrange,

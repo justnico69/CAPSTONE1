@@ -18,6 +18,11 @@ class _AlbumsPageState extends State<AlbumsPage> {
   Set<String> _selectedAlbums = {};
   bool _selectionMode = false;
 
+  // 🔹 Filter State
+  DateTime? _startDate;
+  DateTime? _endDate;
+  String _filterStatus = 'All'; // 'All', 'Has Disease', 'Healthy'
+
   @override
   void initState() {
     super.initState();
@@ -26,8 +31,172 @@ class _AlbumsPageState extends State<AlbumsPage> {
 
   void _loadAlbums() {
     setState(() {
-      _albumsFuture = DatabaseHelper.instance.getAllAlbums();
+      _albumsFuture = DatabaseHelper.instance.getAllAlbums(
+        startDate: _startDate,
+        endDate: _endDate,
+        filterType: _filterStatus,
+      );
     });
+  }
+
+  // 🔹 Filter UI Logic
+  void _showFilterDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        // Temp state for the dialog
+        DateTime? tempStart = _startDate;
+        DateTime? tempEnd = _endDate;
+        String tempFilter = _filterStatus;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final dateText = (tempStart == null || tempEnd == null)
+                ? "Select Date Range"
+                : "${tempStart!.month}/${tempStart!.day} - ${tempEnd!.month}/${tempEnd!.day}";
+
+            return Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                   const Text(
+                    "Filter Albums",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: kDarkBrown,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 1. Date Picker
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final picked = await showDateRangePicker(
+                        context: context,
+                        firstDate: DateTime(2023),
+                        lastDate: DateTime.now(),
+                        initialDateRange: (tempStart != null && tempEnd != null)
+                            ? DateTimeRange(start: tempStart!, end: tempEnd!)
+                            : null,
+                        builder: (context, child) {
+                          return Theme(
+                            data: ThemeData.light().copyWith(
+                              primaryColor: kDarkBrown,
+                              colorScheme: const ColorScheme.light(
+                                primary: kDarkBrown,
+                                onPrimary: Colors.white,
+                                onSurface: kDarkBrown,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null) {
+                        setModalState(() {
+                          tempStart = picked.start;
+                          tempEnd = picked.end;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_today),
+                    label: Text(dateText),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: kDarkBrown,
+                      side: const BorderSide(color: kDarkBrown),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // 2. Health Status
+                  const Text("Contents:",
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    children: [
+                      _buildFilterChip('All', tempFilter, (val) {
+                        setModalState(() => tempFilter = val);
+                      }),
+                      _buildFilterChip('Has Disease', tempFilter, (val) {
+                        setModalState(() => tempFilter = val);
+                      }),
+                      _buildFilterChip('Healthy', tempFilter, (val) {
+                        setModalState(() => tempFilter = val);
+                      }),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // 3. Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () {
+                            // Reset
+                            setState(() {
+                              _startDate = null;
+                              _endDate = null;
+                              _filterStatus = 'All';
+                              _loadAlbums();
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text("Reset",
+                              style: TextStyle(color: Colors.grey)),
+                        ),
+                      ),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Apply
+                            setState(() {
+                              _startDate = tempStart;
+                              _endDate = tempEnd;
+                              _filterStatus = tempFilter;
+                              _loadAlbums();
+                            });
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: kOrange),
+                          child: const Text("Apply Filters"),
+                        ),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterChip(
+      String label, String currentSelection, Function(String) onSelect) {
+    final isSelected = label == currentSelection;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      selectedColor: kOrange,
+      labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+      onSelected: (_) => onSelect(label),
+    );
   }
 
   Future<void> _deleteSelected(List<String> albumNames) async {
@@ -114,6 +283,8 @@ class _AlbumsPageState extends State<AlbumsPage> {
             .map((a) => a['albumName'] as String)
             .toList();
 
+        final bool isFilterActive = _filterStatus != 'All' || _startDate != null;
+
         // 3. NOW we build the Scaffold, so the AppBar can use the data.
         return Scaffold(
           // 4. This is the SINGLE background color.
@@ -139,6 +310,29 @@ class _AlbumsPageState extends State<AlbumsPage> {
             ),
             // 5. The actions are now built correctly with the data.
             actions: [
+              if (!_selectionMode)
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.tune, color: kDarkBrown), // Fader/Filter icon
+                      onPressed: _showFilterDialog,
+                      tooltip: "Filter Albums",
+                    ),
+                    if (isFilterActive)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               if (_selectionMode && allAlbums.isNotEmpty)
                 IconButton(
                   icon: const Icon(Icons.select_all, color: kDarkBrown),
@@ -167,6 +361,37 @@ class _AlbumsPageState extends State<AlbumsPage> {
             }
 
             if (allAlbums.isEmpty) {
+              if (isFilterActive) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                       Icon(Icons.filter_list_off, size: 60, color: Colors.grey[400]),
+                       const SizedBox(height: 10),
+                       Text(
+                        "No albums match your filter.",
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          color: Colors.grey[600],
+                          fontSize: 16,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _startDate = null;
+                            _endDate = null;
+                            _filterStatus = 'All';
+                            _loadAlbums();
+                          });
+                        },
+                        child: const Text("Clear Filters", style: TextStyle(color: kOrange)),
+                      )
+                    ],
+                  ),
+                );
+              }
+
               return Center(
                 child: Text(
                   "No saved albums. Go take some photos!",
